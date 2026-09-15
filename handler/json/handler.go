@@ -31,22 +31,22 @@ func WithTimeFormat(format string) Option {
 }
 
 // WithLevelString sets the level to string mapping, default {debug, info, warn, error, fatal}.
-func WithLevelString(m map[handler.Level]string) Option {
+func WithLevelString(m map[slog.Level]string) Option {
 	return func(o *handler.Options) { o.LevelString = m }
 }
 
-// WithLevel sets the minimum log level to output, default [handler.LevelInfo].
-func WithLevel(level handler.Level) Option {
+// WithLevel sets the minimum log level to output, default [slog.LevelInfo].
+func WithLevel(level slog.Level) Option {
 	return func(o *handler.Options) { o.Level = level }
 }
 
-// WithSyncLevel sets the level that triggers auto Sync when a record.Level >= SyncLevel, default [handler.LevelError].
-func WithSyncLevel(level handler.Level) Option {
+// WithSyncLevel sets the level that triggers auto Sync when a record.Level >= SyncLevel, default [slog.LevelError].
+func WithSyncLevel(level slog.Level) Option {
 	return func(o *handler.Options) { o.SyncLevel = level }
 }
 
 // WithReplace sets a custom function to replace log attrs, default none.
-func WithReplace(fn func(groups []string, a handler.Attr) handler.Attr) Option {
+func WithReplace(fn func(groups []string, a slog.Attr) slog.Attr) Option {
 	return func(o *handler.Options) { o.ReplaceAttr = fn }
 }
 
@@ -90,8 +90,10 @@ func (h *json) replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	return a
 }
 
-func (h *json) Slog() slog.Handler                                { return &handler.WrapHandler{Handler: h} }
-func (h *json) Enabled(ctx context.Context, l handler.Level) bool { return h.h.Enabled(ctx, l) }
+func (h *json) Slog() slog.Handler { return &handler.WrapHandler{Handler: h} }
+func (h *json) Enabled(ctx context.Context, l slog.Level) bool {
+	return h.h.Enabled(ctx, l)
+}
 func (h *json) WithAttrs(attrs []slog.Attr) handler.Handler {
 	return &json{
 		c: h.c,
@@ -107,7 +109,7 @@ func (h *json) WithGroup(name string) handler.Handler {
 	}
 }
 
-func (h *json) Handle(ctx context.Context, r handler.Record) error {
+func (h *json) Handle(ctx context.Context, r slog.Record) error {
 	return h.h.Handle(ctx, r)
 }
 

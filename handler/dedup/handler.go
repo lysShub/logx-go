@@ -22,7 +22,7 @@ var _ handler.Handler = (*dedup)(nil)
 
 type record struct{ v atomic.Uint64 }
 type option struct {
-	hash  func(handler.Record) uint32
+	hash  func(slog.Record) uint32
 	ttl   uint32 // seconds
 	count int
 }
@@ -34,7 +34,7 @@ var defaultOption = option{
 	count: 512, // 512 * 8 = 4KiB
 }
 
-func WithHash(fn func(handler.Record) uint32) func(*option) {
+func WithHash(fn func(slog.Record) uint32) func(*option) {
 	return func(c *option) { c.hash = fn }
 }
 
@@ -62,7 +62,7 @@ func (d *dedup) Close() error {
 	return d.Handler.Close()
 }
 
-func (d *dedup) Handle(ctx context.Context, rec handler.Record) error {
+func (d *dedup) Handle(ctx context.Context, rec slog.Record) error {
 	if sum := d.o.hash(rec); sum != 0 {
 		now := uint32(time.Now().Unix())
 
@@ -88,7 +88,7 @@ func (r *record) get() (hash, stamp uint32) {
 }
 
 func defalutHash(r slog.Record) uint32 {
-	if r.Level != handler.LevelWarn {
+	if r.Level != slog.LevelWarn {
 		return 0
 	}
 	var hash = xxh3.HashString(r.Message)

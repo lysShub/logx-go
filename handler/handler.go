@@ -13,52 +13,33 @@ import (
 
 // reference [slog.Handler]
 type Handler interface {
-	Enabled(context.Context, Level) bool
-	Handle(context.Context, Record) internal.Error
-	WithAttrs(attrs []Attr) Handler
+	Enabled(context.Context, slog.Level) bool
+	Handle(context.Context, slog.Record) internal.Error
+	WithAttrs(attrs []slog.Attr) Handler
 	WithGroup(name string) Handler
 	Slog() slog.Handler
 	writer.Syncer
 	io.Closer
 }
 
-type (
-	Level  = slog.Level
-	Attr   = slog.Attr
-	Record = slog.Record
-	Value  = slog.Value
-)
-
-const (
-	LevelDebug Level = slog.LevelDebug
-	LevelInfo  Level = slog.LevelInfo
-	LevelWarn  Level = slog.LevelWarn
-	LevelError Level = slog.LevelError
-	LevelFatal Level = slog.LevelError + 4
-)
-
-func NewRecord(t time.Time, level Level, msg string, pc uintptr) Record {
-	return slog.NewRecord(t, level, msg, pc)
-}
-
 // Discard discards all records, it is the default [Handler] of logx.
 type Discard struct{} //
 var _ Handler = Discard{}
 
-func (Discard) Enabled(context.Context, Level) bool           { return false }
-func (Discard) Handle(context.Context, Record) internal.Error { return nil }
-func (Discard) WithAttrs([]Attr) Handler                      { return Discard{} }
-func (Discard) WithGroup(string) Handler                      { return Discard{} }
-func (Discard) Slog() slog.Handler                            { return slog.NewTextHandler(io.Discard, nil) }
-func (Discard) Sync(context.Context) internal.Error           { return nil }
-func (Discard) Close() internal.Error                         { return nil }
+func (Discard) Enabled(context.Context, slog.Level) bool           { return false }
+func (Discard) Handle(context.Context, slog.Record) internal.Error { return nil }
+func (Discard) WithAttrs([]slog.Attr) Handler                      { return Discard{} }
+func (Discard) WithGroup(string) Handler                           { return Discard{} }
+func (Discard) Slog() slog.Handler                                 { return slog.NewTextHandler(io.Discard, nil) }
+func (Discard) Sync(context.Context) internal.Error                { return nil }
+func (Discard) Close() internal.Error                              { return nil }
 
 // common Options
 type Options struct {
-	TimeLocation *time.Location   // default [time.Local]
-	TimeFormat   string           // default [RFC3339Millis]
-	LevelString  map[Level]string // default [LevelString]
-	SyncLevel    Level            // record.Level >= SyncLevel 时自动 Sync。default [LevelError]
+	TimeLocation *time.Location        // default [time.Local]
+	TimeFormat   string                // default [RFC3339Millis]
+	LevelString  map[slog.Level]string // default [LevelString]
+	SyncLevel    slog.Level            // record.Level >= SyncLevel 时自动 Sync。default [slog.LevelError]
 	slog.HandlerOptions
 }
 
@@ -73,16 +54,16 @@ func (o *Options) Init() {
 		o.LevelString = LevelString
 	}
 	if o.SyncLevel == 0 {
-		o.SyncLevel = LevelError
+		o.SyncLevel = slog.LevelError
 	}
 }
 
-var LevelString = map[Level]string{
-	LevelDebug: "debug",
-	LevelInfo:  "info",
-	LevelWarn:  "warn",
-	LevelError: "error",
-	LevelFatal: "fatal",
+var LevelString = map[slog.Level]string{
+	slog.LevelDebug:     "debug",
+	slog.LevelInfo:      "info",
+	slog.LevelWarn:      "warn",
+	slog.LevelError:     "error",
+	slog.LevelError + 4: "fatal",
 }
 
 const (
@@ -129,6 +110,6 @@ var _ slog.Handler = (*WrapHandler)(nil) //
 func (h *WrapHandler) WithGroup(name string) slog.Handler {
 	return &WrapHandler{h.Handler.WithGroup(name)}
 }
-func (h *WrapHandler) WithAttrs(attrs []Attr) slog.Handler {
+func (h *WrapHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &WrapHandler{h.Handler.WithAttrs(attrs)}
 }

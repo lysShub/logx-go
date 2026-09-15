@@ -2,7 +2,6 @@ package logx
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"reflect"
 	"syscall"
@@ -14,12 +13,18 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Log(level Level, msg string, attrs ...Attr)   { defaultLogger.Load().log(level, msg, nil, attrs...) }
-func Debug(msg string, attrs ...Attr)              { defaultLogger.Load().Debug(msg, attrs...) }
-func Info(msg string, attrs ...Attr)               { defaultLogger.Load().Info(msg, attrs...) }
-func Warn[T string | error](msg T, attrs ...Attr)  { defaultLogger.Load().Warn(msg, attrs...) }
-func Error[T string | error](msg T, attrs ...Attr) { defaultLogger.Load().Error(msg, attrs...) }
-func Fatal[T string | error](msg T, attrs ...Attr) { defaultLogger.Load().Fatal(msg, attrs...) }
+func Log(level Level, msg string, attrs ...Attr) { defaultLogger.Load().log(level, msg, nil, attrs...) }
+func Debug(msg string, attrs ...Attr)            { defaultLogger.Load().Debug(msg, attrs...) }
+func Info(msg string, attrs ...Attr)             { defaultLogger.Load().Info(msg, attrs...) }
+func Warn[T string | error](msg T, attrs ...Attr) {
+	defaultLogger.Load().Warn(msg, attrs...)
+}
+func Error[T string | error](msg T, attrs ...Attr) {
+	defaultLogger.Load().Error(msg, attrs...)
+}
+func Fatal[T string | error](msg T, attrs ...Attr) {
+	defaultLogger.Load().Fatal(msg, attrs...)
+}
 
 type Logger struct {
 	h handler.Handler
@@ -46,7 +51,7 @@ func (l *Logger) Enabled(level Level) bool {
 func (l *Logger) WithGroup(name string) *Logger {
 	return &Logger{h: l.h.WithGroup(name), o: l.o}
 }
-func (l *Logger) WithAttrs(attrs ...slog.Attr) *Logger {
+func (l *Logger) WithAttrs(attrs ...Attr) *Logger {
 	return &Logger{h: l.h.WithAttrs(attrs), o: l.o}
 }
 
@@ -106,7 +111,7 @@ func (l *Logger) log(level Level, msg string, st stack.StackTrace, attrs ...Attr
 		if len(st) == 0 {
 			st = stack.New(l.o.StackKind, 5)
 		}
-		rec.AddAttrs(Attr{Key: stack.StackKey, Value: slog.AnyValue(st)})
+		rec.AddAttrs(Attr{Key: stack.StackKey, Value: AnyValue(st)})
 	}
 
 	if err := l.h.Handle(context.Background(), rec); err != nil {

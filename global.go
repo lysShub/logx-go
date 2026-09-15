@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/lysShub/logx-go/handler"
+	"github.com/lysShub/logx-go/stack"
 )
 
 var (
@@ -19,4 +20,8 @@ func SetDefault(l *Logger) (old *Logger) {
 	old = defaultLogger.Swap(l)
 	slog.SetDefault(slog.New(l.h.Slog()))
 	return old
+}
+
+func Stack() Attr {
+	return Attr{Key: stack.StackKey, Value: AnyValue(stack.New(stack.Trace, 3))}
 }

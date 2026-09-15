@@ -5,18 +5,17 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/lysShub/logx-go"
 	"github.com/lysShub/logx-go/handler"
 )
 
 type tee struct {
-	hs []logx.Handler
+	hs []handler.Handler
 } //
-var _ logx.Handler = (*tee)(nil)
+var _ handler.Handler = (*tee)(nil)
 
-func New(hs ...logx.Handler) *tee { return &tee{hs: hs} }
+func New(hs ...handler.Handler) *tee { return &tee{hs: hs} }
 
-func (t *tee) Enabled(ctx context.Context, l logx.Level) bool {
+func (t *tee) Enabled(ctx context.Context, l handler.Level) bool {
 	for _, h := range t.hs {
 		if h.Enabled(ctx, l) {
 			return true
@@ -24,7 +23,7 @@ func (t *tee) Enabled(ctx context.Context, l logx.Level) bool {
 	}
 	return false
 }
-func (t *tee) Handle(ctx context.Context, r logx.Record) error {
+func (t *tee) Handle(ctx context.Context, r handler.Record) error {
 	var errs []error
 	for _, h := range t.hs {
 		if e := h.Handle(ctx, r.Clone()); e != nil {
@@ -33,15 +32,15 @@ func (t *tee) Handle(ctx context.Context, r logx.Record) error {
 	}
 	return errors.Join(errs...)
 }
-func (t *tee) WithAttrs(attrs []logx.Attr) logx.Handler {
-	var hs = make([]logx.Handler, len(t.hs))
+func (t *tee) WithAttrs(attrs []handler.Attr) handler.Handler {
+	var hs = make([]handler.Handler, len(t.hs))
 	for i, h := range t.hs {
 		hs[i] = h.WithAttrs(attrs)
 	}
 	return &tee{hs: hs}
 }
-func (t *tee) WithGroup(name string) logx.Handler {
-	var hs = make([]logx.Handler, len(t.hs))
+func (t *tee) WithGroup(name string) handler.Handler {
+	var hs = make([]handler.Handler, len(t.hs))
 	for i, h := range t.hs {
 		hs[i] = h.WithGroup(name)
 	}

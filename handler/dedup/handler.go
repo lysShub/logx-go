@@ -8,20 +8,21 @@ import (
 	"unsafe"
 
 	"github.com/lysShub/bytespool-go"
-	"github.com/lysShub/logx-go"
+	"github.com/lysShub/logx-go/handler"
+	"github.com/lysShub/logx-go/stack"
 	"github.com/zeebo/xxh3"
 )
 
 type dedup struct {
-	logx.Handler
+	handler.Handler
 	o    option
 	recs []record
 } //
-var _ logx.Handler = (*dedup)(nil)
+var _ handler.Handler = (*dedup)(nil)
 
 type record struct{ v atomic.Uint64 }
 type option struct {
-	hash  func(logx.Record) uint32
+	hash  func(handler.Record) uint32
 	ttl   uint32 // seconds
 	count int
 }
@@ -33,7 +34,7 @@ var defaultOption = option{
 	count: 512, // 512 * 8 = 4KiB
 }
 
-func WithHash(fn func(logx.Record) uint32) func(*option) {
+func WithHash(fn func(handler.Record) uint32) func(*option) {
 	return func(c *option) { c.hash = fn }
 }
 
@@ -45,7 +46,7 @@ func WithCacheSize(count int) func(*option) {
 	return func(o *option) { o.count = count }
 }
 
-func New(h logx.Handler, opts ...Option) logx.Handler {
+func New(h handler.Handler, opts ...Option) handler.Handler {
 	d := &dedup{
 		Handler: h,
 		o:       defaultOption,
@@ -61,7 +62,7 @@ func (d *dedup) Close() error {
 	return d.Handler.Close()
 }
 
-func (d *dedup) Handle(ctx context.Context, rec logx.Record) error {
+func (d *dedup) Handle(ctx context.Context, rec handler.Record) error {
 	if sum := d.o.hash(rec); sum != 0 {
 		now := uint32(time.Now().Unix())
 
@@ -87,7 +88,7 @@ func (r *record) get() (hash, stamp uint32) {
 }
 
 func defalutHash(r slog.Record) uint32 {
-	if r.Level != logx.LevelWarn {
+	if r.Level != handler.LevelWarn {
 		return 0
 	}
 	var hash = xxh3.HashString(r.Message)
@@ -99,9 +100,9 @@ func defalutHash(r slog.Record) uint32 {
 }
 func hashStacks(hash uint64, a slog.Attr) (uint64, bool) {
 	var ok = false
-	if a.Key == logx.StackKey {
+	if a.Key == stack.StackKey {
 		v := a.Value.Any()
-		if st, is := v.(logx.StackTrace); is {
+		if st, is := v.(stack.StackTrace); is {
 			const word = int(unsafe.Sizeof(st[0]))
 
 			b := unsafe.Slice((*byte)(unsafe.Pointer(&st[0])), len(st)*word)

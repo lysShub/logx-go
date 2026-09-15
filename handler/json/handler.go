@@ -6,7 +6,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/lysShub/logx-go"
 	"github.com/lysShub/logx-go/handler"
 	"github.com/lysShub/logx-go/writer"
 )
@@ -16,7 +15,7 @@ type json struct {
 	w writer.Writer
 	h slog.Handler
 } //
-var _ logx.Handler = (*json)(nil)
+var _ handler.Handler = (*json)(nil)
 
 type config = handler.Options
 type Option = func(*handler.Options)
@@ -32,26 +31,24 @@ func WithTimeFormat(format string) Option {
 }
 
 // WithLevelString sets the level to string mapping, default {debug, info, warn, error, fatal}.
-func WithLevelString(m map[logx.Level]string) Option {
+func WithLevelString(m map[handler.Level]string) Option {
 	return func(o *handler.Options) { o.LevelString = m }
 }
 
-// WithLevel sets the minimum log level to output, default [logx.LevelInfo].
-func WithLevel(level logx.Level) Option {
+// WithLevel sets the minimum log level to output, default [handler.LevelInfo].
+func WithLevel(level handler.Level) Option {
 	return func(o *handler.Options) { o.Level = level }
 }
 
-// WithSyncLevel sets the level that triggers auto Sync when a record.Level >= SyncLevel, default [logx.LevelError].
-func WithSyncLevel(level logx.Level) Option {
+// WithSyncLevel sets the level that triggers auto Sync when a record.Level >= SyncLevel, default [handler.LevelError].
+func WithSyncLevel(level handler.Level) Option {
 	return func(o *handler.Options) { o.SyncLevel = level }
 }
 
 // WithReplace sets a custom function to replace log attrs, default none.
-func WithReplace(fn func(groups []string, a logx.Attr) logx.Attr) Option {
+func WithReplace(fn func(groups []string, a handler.Attr) handler.Attr) Option {
 	return func(o *handler.Options) { o.ReplaceAttr = fn }
 }
-
-var _ logx.Handler = (*json)(nil)
 
 func NewJSON(w writer.Writer, opts ...Option) *json {
 	var h = &json{
@@ -93,16 +90,16 @@ func (h *json) replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	return a
 }
 
-func (h *json) Slog() slog.Handler                             { return &handler.WrapHandler{Handler: h} }
-func (h *json) Enabled(ctx context.Context, l logx.Level) bool { return h.h.Enabled(ctx, l) }
-func (h *json) WithAttrs(attrs []slog.Attr) logx.Handler {
+func (h *json) Slog() slog.Handler                                { return &handler.WrapHandler{Handler: h} }
+func (h *json) Enabled(ctx context.Context, l handler.Level) bool { return h.h.Enabled(ctx, l) }
+func (h *json) WithAttrs(attrs []slog.Attr) handler.Handler {
 	return &json{
 		c: h.c,
 		w: h.w,
 		h: h.h.WithAttrs(attrs),
 	}
 }
-func (h *json) WithGroup(name string) logx.Handler {
+func (h *json) WithGroup(name string) handler.Handler {
 	return &json{
 		c: h.c,
 		w: h.w,
@@ -110,7 +107,7 @@ func (h *json) WithGroup(name string) logx.Handler {
 	}
 }
 
-func (h *json) Handle(ctx context.Context, r logx.Record) error {
+func (h *json) Handle(ctx context.Context, r handler.Record) error {
 	return h.h.Handle(ctx, r)
 }
 

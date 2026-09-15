@@ -3,10 +3,12 @@ package logx
 import (
 	"log/slog"
 	"sync/atomic"
+
+	"github.com/lysShub/logx-go/handler"
 )
 
 var (
-	// _             = SetDefault(New(nil))
+	_             = SetDefault(New(handler.Discard{}))
 	defaultLogger atomic.Pointer[Logger]
 )
 

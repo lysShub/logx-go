@@ -1,25 +1,26 @@
 package logx
 
 import (
-	"log/slog"
 	"time"
+
+	"github.com/lysShub/logx-go/handler"
 )
 
 type (
-	Level  = slog.Level
-	Attr   = slog.Attr
-	Record = slog.Record
-	Value  = slog.Value
+	Level  = handler.Level
+	Attr   = handler.Attr
+	Record = handler.Record
+	Value  = handler.Value
 )
 
 const (
-	LevelDebug Level = slog.LevelDebug
-	LevelInfo  Level = slog.LevelInfo
-	LevelWarn  Level = slog.LevelWarn
-	LevelError Level = slog.LevelError
-	LevelFatal Level = slog.LevelError + 4
+	LevelDebug = handler.LevelDebug
+	LevelInfo  = handler.LevelInfo
+	LevelWarn  = handler.LevelWarn
+	LevelError = handler.LevelError
+	LevelFatal = handler.LevelFatal
 )
 
 func NewRecord(t time.Time, level Level, msg string, pc uintptr) Record {
-	return slog.NewRecord(t, level, msg, pc)
+	return handler.NewRecord(t, level, msg, pc)
 }

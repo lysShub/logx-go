@@ -2,15 +2,15 @@ package logx
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"os"
 	"reflect"
 	"syscall"
 	"unsafe"
 
+	"github.com/lysShub/logx-go/handler"
 	"github.com/lysShub/logx-go/internal"
-	"github.com/lysShub/logx-go/writer"
+	"github.com/lysShub/logx-go/stack"
 	"github.com/pkg/errors"
 )
 
@@ -21,24 +21,13 @@ func Warn[T string | error](msg T, attrs ...Attr)  { defaultLogger.Load().Warn(m
 func Error[T string | error](msg T, attrs ...Attr) { defaultLogger.Load().Error(msg, attrs...) }
 func Fatal[T string | error](msg T, attrs ...Attr) { defaultLogger.Load().Fatal(msg, attrs...) }
 
-// reference [slog.Handler]
-type Handler interface {
-	Enabled(context.Context, Level) bool
-	Handle(context.Context, Record) internal.Error
-	WithAttrs(attrs []Attr) Handler
-	WithGroup(name string) Handler
-	Slog() slog.Handler
-	writer.Syncer
-	io.Closer
-}
-
 type Logger struct {
-	h Handler
+	h handler.Handler
 	o option
 }
 type error = any
 
-func New(h Handler, opts ...Option) *Logger {
+func New(h handler.Handler, opts ...Option) *Logger {
 	l := &Logger{
 		h: h,
 		o: defaultOption,
@@ -50,15 +39,15 @@ func New(h Handler, opts ...Option) *Logger {
 }
 func (l *Logger) Close() error                   { return l.h.Close() }
 func (l *Logger) Sync(ctx context.Context) error { return l.h.Sync(ctx) }
-func (l *Logger) Handler() Handler               { return l.h }
+func (l *Logger) Handler() handler.Handler       { return l.h }
 func (l *Logger) Enabled(level Level) bool {
 	return l.h.Enabled(context.Background(), level)
 }
 func (l *Logger) WithGroup(name string) *Logger {
-	return &Logger{h: l.h.WithGroup(name)}
+	return &Logger{h: l.h.WithGroup(name), o: l.o}
 }
 func (l *Logger) WithAttrs(attrs ...slog.Attr) *Logger {
-	return &Logger{h: l.h.WithAttrs(attrs)}
+	return &Logger{h: l.h.WithAttrs(attrs), o: l.o}
 }
 
 func (l *Logger) Log(level Level, msg string, attrs ...Attr) {
@@ -99,8 +88,8 @@ func (l *Logger) logerr[T string | error](level Level, err T, attrs ...Attr) {
 			panic("not support type")
 		}
 
-		var st StackTrace
-		if l.o.StackKind == Trace && level >= l.o.StackLevel {
+		var st stack.StackTrace
+		if l.o.StackKind == stack.Trace && level >= l.o.StackLevel {
 			// 错误现场 替代 日志现场, 通常是相近的
 			st = l.o.ErrStack(e)
 		}
@@ -109,26 +98,18 @@ func (l *Logger) logerr[T string | error](level Level, err T, attrs ...Attr) {
 		panic("not support type")
 	}
 }
-func (l *Logger) log(level Level, msg string, stack StackTrace, attrs ...Attr) {
+func (l *Logger) log(level Level, msg string, st stack.StackTrace, attrs ...Attr) {
 	rec := NewRecord(l.o.Now(), level, msg, 0)
 	rec.AddAttrs(attrs...)
 
 	if level >= l.o.StackLevel {
-		if len(stack) == 0 {
-			switch l.o.StackKind {
-			case Source:
-				stack = newStack(Source)
-			case Trace:
-				stack = newStack(Trace)
-			default:
-				panic(l.o.StackKind)
-			}
+		if len(st) == 0 {
+			st = stack.New(l.o.StackKind, 5)
 		}
-		rec.AddAttrs(Attr{Key: StackKey, Value: slog.AnyValue(stack)})
+		rec.AddAttrs(Attr{Key: stack.StackKey, Value: slog.AnyValue(st)})
 	}
 
-	h := Default().Handler()
-	if err := h.Handle(context.Background(), rec); err != nil {
+	if err := l.h.Handle(context.Background(), rec); err != nil {
 		l.o.HandlerErr(err, rec)
 	}
 

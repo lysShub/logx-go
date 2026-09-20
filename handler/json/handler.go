@@ -35,8 +35,8 @@ func WithLevelString(m map[slog.Level]string) Option {
 	return func(o *handler.Options) { o.LevelString = m }
 }
 
-// WithLevel sets the minimum log level to output, default [slog.LevelInfo].
-func WithLevel(level slog.Level) Option {
+// WithLeveler sets the minimum log level to output, default [slog.LevelInfo].
+func WithLeveler(level slog.Leveler) Option {
 	return func(o *handler.Options) { o.Level = level }
 }
 

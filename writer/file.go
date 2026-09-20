@@ -1,8 +1,8 @@
 package writer
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"sync"
@@ -11,11 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/lysShub/bytespool-go"
-)
-
-var (
-	errNoCollapse = errors.New("writer: collapse range unsupported")
-	errNoMmap     = errors.New("writer: mmap unsupported")
 )
 
 type file struct {
@@ -32,6 +27,7 @@ func File[T *os.File | string](f T) (w Writer, err error) {
 	if err != nil {
 		return nil, err
 	}
+	fh.Seek(0, io.SeekEnd) // ensure append position; ignore for non-seekable (pipe, stderr)
 	return &file{File: fh}, nil
 }
 func MustFile[T *os.File | string](f T) Writer {
@@ -41,12 +37,16 @@ func MustFile[T *os.File | string](f T) Writer {
 		return w
 	}
 }
-func openFile[T *os.File | string](f T, flag int) (*os.File, error) {
+func openFile[T *os.File | string](f T, flag int) (fh *os.File, err error) {
 	if unsafe.Sizeof(new(int)) == unsafe.Sizeof(f) {
-		return *(**os.File)(unsafe.Pointer(&f)), nil
+		fh, err = *(**os.File)(unsafe.Pointer(&f)), nil
 	} else {
-		return os.OpenFile(*(*string)(unsafe.Pointer(&f)), flag, 0o644)
+		fh, err = os.OpenFile(*(*string)(unsafe.Pointer(&f)), flag, 0o644)
 	}
+	if err != nil && fh != nil {
+		fh.Close()
+	}
+	return fh, err
 }
 
 type rotate struct {
@@ -61,21 +61,25 @@ type rotate struct {
 } //
 var _ Writer = (*rotate)(nil)
 
-func (r *rotate) Sync(context.Context) error { return r.fh.Sync() }
-
 func Rotate[T *os.File | string](f T, limit int) (w Writer, err error) {
 	fh, err := openFile(f, os.O_CREATE|os.O_RDWR)
 	if err != nil {
 		return nil, err
 	}
-	r := &rotate{limit: int64(limit), fh: fh}
-
-	r.raw, err = fh.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
+	fh.Seek(0, io.SeekEnd)
 
 	st, err := fh.Stat()
+	if err != nil {
+		fh.Close()
+		return nil, err
+	}
+	if !st.Mode().IsRegular() {
+		// pipe/terminal/socket cannot rotate (no seek/truncate), degrade to plain file
+		return &file{File: fh}, nil
+	}
+
+	r := &rotate{limit: int64(limit), fh: fh}
+	r.raw, err = fh.SyscallConn()
 	if err != nil {
 		return nil, err
 	}
@@ -96,20 +100,41 @@ func MustRotate[T *os.File | string](f T, bytes int) (w Writer) {
 	}
 }
 
-func (r *rotate) Close() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.fh.Close()
+func (r *rotate) Close() (err error) {
+	if e := r.raw.Write(func(fd uintptr) (done bool) {
+		if err = r.fh.Sync(); err != nil {
+			return true
+		}
+		if err = r.fh.Close(); err != nil {
+			return true
+		}
+		return true
+	}); e != nil {
+		return e
+	}
+	return err
+}
+func (r *rotate) Sync(context.Context) (err error) {
+	if e := r.raw.Write(func(fd uintptr) (done bool) {
+		err = r.fh.Sync()
+		return true
+	}); e != nil {
+		return e
+	}
+	return err
 }
 
 func (r *rotate) Write(p []byte) (int, error) {
 	if r.rotating.Load() {
 		r.mu.Lock()
-		defer r.mu.Unlock()
-		b := bytespool.Get[[]byte, byte](len(p))
-		copy(b, p)
-		r.pending = append(r.pending, b)
-		return len(p), nil
+		if r.rotating.Load() {
+			b := bytespool.Get[[]byte, byte](len(p))
+			copy(b, p)
+			r.pending = append(r.pending, b)
+			r.mu.Unlock()
+			return len(p), nil
+		}
+		r.mu.Unlock()
 	}
 
 	n, err := r.fh.Write(p)
@@ -126,38 +151,78 @@ func (r *rotate) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func (r *rotate) rotate() error {
+func (r *rotate) rotate() (err error) {
 	if !r.rotating.CompareAndSwap(false, true) {
 		return nil
 	}
-	{
-		n, err := r.copyToHead()
+	defer r.rotating.CompareAndSwap(true, false)
+
+	if e := r.raw.Write(func(_ uintptr) (done bool) {
+		err = r.moveToHead()
+		return true
+	}); e != nil {
+		return e
+	}
+	if err != nil {
+		return err
+	}
+	return r.flush()
+}
+func (r *rotate) moveToHead() error {
+	st, err := r.fh.Stat()
+	if err != nil {
+		return err
+	}
+	size := st.Size()
+
+	var b = bytespool.Get[[]byte, byte](1024 * 32)
+	defer bytespool.Put[[]byte, byte](b)
+
+	n, err := r.copyToHead(b, size)
+	if err != nil {
+		return err
+	}
+	r.size.Store(n)
+
+	if err := r.fh.Truncate(n); err != nil {
+		return err
+	}
+	if _, err := r.fh.Seek(0, io.SeekEnd); err != nil {
+		return err
+	}
+	return nil
+}
+func (r *rotate) flush() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rotating.Store(false)
+
+	for _, p := range r.pending {
+		n, err := r.fh.Write(p)
 		if err != nil {
 			return err
 		}
-		r.size.Store(n)
-
-		if err := r.fh.Truncate(n); err != nil {
-			return err
-		}
-		if _, err := r.fh.Seek(0, io.SeekEnd); err != nil {
-			return err
-		}
+		r.size.Add(int64(n))
+		bytespool.Put[[]byte, byte](p)
 	}
-	{
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		r.rotating.Store(false)
-
-		for _, p := range r.pending {
-			n, err := r.fh.Write(p)
-			if err != nil {
-				return err
-			}
-			r.size.Add(int64(n))
-			bytespool.Put[[]byte, byte](p)
-		}
-		r.pending = r.pending[:0]
-	}
+	r.pending = r.pending[:0]
 	return nil
+}
+func (r *rotate) mid(b []byte, size int64) (mid int64, err error) {
+	mid = size / 2
+	for {
+		m, err := r.fh.ReadAt(b, mid)
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+		i := bytes.IndexByte(b[:m], '\n')
+		if i >= 0 {
+			mid += int64(i) + 1
+			return mid, nil
+		}
+		if err == io.EOF {
+			return -1, nil
+		}
+		mid += int64(m)
+	}
 }

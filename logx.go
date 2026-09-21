@@ -104,6 +104,9 @@ func (l *Logger) logerr[T string | error](level Level, err T, attrs ...Attr) {
 	}
 }
 func (l *Logger) log(level Level, msg string, st stack.StackTrace, attrs ...Attr) {
+	if !l.h.Enabled(context.Background(), level) {
+		return
+	}
 	rec := NewRecord(l.o.Now(), level, msg, 0)
 	rec.AddAttrs(attrs...)
 

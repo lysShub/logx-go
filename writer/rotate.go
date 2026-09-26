@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"sync"
-	"sync/atomic"
 )
 
 type rotate struct {
@@ -16,11 +15,9 @@ type rotate struct {
 	fh   *os.File
 	size int64
 
-	rotating atomic.Bool
-	pmu      sync.Mutex
-	pending  [][]byte
-}
-
+	canReflink  bool
+	canSendfile bool
+} //
 var _ Writer = (*rotate)(nil)
 
 func Rotate[T *os.File | string](f T, limit int) (w Writer, err error) {
@@ -28,8 +25,14 @@ func Rotate[T *os.File | string](f T, limit int) (w Writer, err error) {
 	if err != nil {
 		return nil, err
 	}
-	fh.Seek(0, io.SeekEnd)
-
+	w, err = rotateRaw(fh, limit)
+	if err != nil {
+		fh.Close()
+		return nil, err
+	}
+	return w, nil
+}
+func rotateRaw(fh *os.File, limit int) (w Writer, err error) {
 	st, err := fh.Stat()
 	if err != nil {
 		fh.Close()
@@ -40,11 +43,15 @@ func Rotate[T *os.File | string](f T, limit int) (w Writer, err error) {
 		return &file{File: fh}, nil
 	}
 
-	r := &rotate{limit: int64(limit), fh: fh, size: st.Size()}
+	r := &rotate{
+		limit:       int64(limit),
+		fh:          fh,
+		size:        st.Size(),
+		canReflink:  true,
+		canSendfile: true,
+	}
 	if r.size-r.limit > r.limit {
-		r.mu.Lock()
 		err := r.rotate()
-		r.mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -60,8 +67,6 @@ func MustRotate[T *os.File | string](f T, bytes int) (w Writer) {
 }
 
 func (r *rotate) Close() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	if err := r.fh.Sync(); err != nil {
 		r.fh.Close()
 		return err
@@ -69,57 +74,34 @@ func (r *rotate) Close() error {
 	return r.fh.Close()
 }
 func (r *rotate) Sync(context.Context) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	return r.fh.Sync()
 }
 
 func (r *rotate) Write(p []byte) (int, error) {
-	if r.rotating.Load() {
-		if err := r.append(p); err != nil {
-			return 0, err
-		}
-		return len(p), nil
-	}
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	n, err := r.fh.Write(p)
 	if err != nil {
 		return n, err
 	}
 	r.size += int64(n)
 	if r.size-r.limit > r.limit {
-		err = r.rotate()
-	}
-	if err != nil {
-		return 0, err
+		if err := r.rotate(); err != nil {
+			return 0, err
+		}
 	}
 	return n, nil
 }
 
 func (r *rotate) rotate() error {
-	if !r.rotating.CompareAndSwap(false, true) {
-		return nil
-	}
-	defer r.rotating.Store(false)
-
-	if err := r.moveToHead(); err != nil {
-		return err
-	}
-	return r.flush()
+	return r.moveToHead()
 }
 func (r *rotate) moveToHead() error {
-	st, err := r.fh.Stat()
-	if err != nil {
-		return err
-	}
-	size := st.Size()
-
 	var b = Pooler.Get(1024 * 32)
 	defer Pooler.Put(b)
 
-	n, err := r.copyToHead(b, size)
+	n, err := r.copyToHead(b, r.size)
 	if err != nil {
 		return err
 	}
@@ -133,65 +115,41 @@ func (r *rotate) moveToHead() error {
 	}
 	return nil
 }
-func (r *rotate) append(p []byte) (err error) {
-	b := Pooler.Get(len(p))
-	copy(b, p)
-	r.pmu.Lock()
-	if !r.rotating.Load() {
-		// rotate finished while we were in the fast path, write directly
-		r.pmu.Unlock()
-		Pooler.Put(b)
-
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		_, err = r.fh.Write(p)
-		if err != nil {
-			return err
-		}
-		r.size += int64(len(p))
-		return nil
+func (r *rotate) pos(b []byte, size int64) (int64, error) {
+	p := size - r.limit
+	if p < 0 {
+		p = 0
 	}
-	r.pending = append(r.pending, b)
-	r.pmu.Unlock()
-	return nil
-}
-func (r *rotate) flush() error {
 	for {
-		r.pmu.Lock()
-		if len(r.pending) == 0 {
-			r.pmu.Unlock()
-			return nil
-		}
-		batch := r.pending
-		r.pending = nil
-		r.pmu.Unlock()
-
-		for _, p := range batch {
-			n, err := r.fh.Write(p)
-			if err != nil {
-				return err
-			}
-			r.size += int64(n)
-			Pooler.Put(p)
-		}
-	}
-}
-
-func (r *rotate) mid(b []byte, size int64) (mid int64, err error) {
-	mid = size / 2
-	for {
-		m, err := r.fh.ReadAt(b, mid)
+		m, err := r.fh.ReadAt(b, p)
 		if err != nil && err != io.EOF {
 			return 0, err
 		}
-		i := bytes.IndexByte(b[:m], '\n')
-		if i >= 0 {
-			mid += int64(i) + 1
-			return mid, nil
+		if i := bytes.IndexByte(b[:m], '\n'); i >= 0 {
+			return p + int64(i) + 1, nil
 		}
 		if err == io.EOF {
 			return -1, nil
 		}
-		mid += int64(m)
+		p += int64(m)
 	}
+}
+func (r *rotate) copyToHeadRaw(b []byte, pos int64) (int64, error) {
+	i := int64(0)
+	for {
+		m, err := r.fh.ReadAt(b, pos+i)
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+		if m > 0 {
+			if _, err := r.fh.WriteAt(b[:m], i); err != nil {
+				return 0, err
+			}
+		}
+		i += int64(m)
+		if err == io.EOF {
+			break
+		}
+	}
+	return i, nil
 }

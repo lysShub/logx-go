@@ -107,6 +107,39 @@ func Test_rotate(t *testing.T) {
 		}
 	})
 
+	t.Run("preload above limit", func(t *testing.T) {
+		dir := t.TempDir()
+		p := filepath.Join(dir, "preload.log")
+
+		const limit = 100
+		var sb strings.Builder
+		for i := 0; sb.Len() <= limit*3; i++ {
+			fmt.Fprintf(&sb, "line-%04d\n", i)
+		}
+		if err := os.WriteFile(p, []byte(sb.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if fi, err := os.Stat(p); err != nil {
+			t.Fatal(err)
+		} else if fi.Size() <= limit*3 {
+			t.Fatalf("preload too small: %d", fi.Size())
+		}
+
+		w, err := Rotate(p, limit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer w.Close()
+
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Size() > limit {
+			t.Fatalf("size=%d exceeds limit=%d after rotate", fi.Size(), limit)
+		}
+	})
+
 	t.Run("write after rotation", func(t *testing.T) {
 		dir := t.TempDir()
 		p := filepath.Join(dir, "rotate.log")

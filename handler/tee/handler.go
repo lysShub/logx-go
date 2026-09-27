@@ -47,10 +47,10 @@ func (t *tee) WithGroup(name string) handler.Handler {
 	return &tee{hs: hs}
 }
 func (t *tee) Slog() slog.Handler { return &handler.WrapHandler{Handler: t} }
-func (t *tee) Sync(ctx context.Context) error {
+func (t *tee) Sync() error {
 	var errs []error
 	for _, h := range t.hs {
-		if e := h.Sync(ctx); e != nil {
+		if e := h.Sync(); e != nil {
 			errs = append(errs, e)
 		}
 	}

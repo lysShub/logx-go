@@ -2,7 +2,6 @@ package writer
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os"
 	"sync"
@@ -66,16 +65,8 @@ func MustRotate[T *os.File | string](f T, bytes int) (w Writer) {
 	}
 }
 
-func (r *rotate) Close() error {
-	if err := r.fh.Sync(); err != nil {
-		r.fh.Close()
-		return err
-	}
-	return r.fh.Close()
-}
-func (r *rotate) Sync(context.Context) error {
-	return r.fh.Sync()
-}
+func (r *rotate) Close() error { return r.fh.Close() }
+func (r *rotate) Sync() error  { return r.fh.Sync() }
 
 func (r *rotate) Write(p []byte) (int, error) {
 	r.mu.Lock()
@@ -95,7 +86,10 @@ func (r *rotate) Write(p []byte) (int, error) {
 }
 
 func (r *rotate) rotate() error {
-	return r.moveToHead()
+	if err := r.moveToHead(); err != nil {
+		return err
+	}
+	return r.fh.Sync()
 }
 func (r *rotate) moveToHead() error {
 	var b = Pooler.Get(1024 * 32)

@@ -1,61 +1,146 @@
 package writer
 
 import (
-	"io"
+	"os"
+	"slices"
 	"sync"
+	"time"
 )
 
 type buff struct {
-	limit int
+	bytesLimit  int
+	periodLimit time.Duration
+	w           Writer
+	ch          chan uint8
 
-	m     sync.Mutex
-	rntf  *sync.Cond
-	bytes int
-	s     [][]byte
+	m        sync.Mutex
+	bytes    int
+	s        [][]byte
+	flushErr error
+	close    bool
 }
 
-func newBuff(limit int) *buff {
-	b := &buff{limit: limit}
-	b.rntf = sync.NewCond(&b.m)
+const closed uint8 = 0xff
+
+func WithByteLimit(bytes int) func(*buff) {
+	return func(b *buff) { b.bytesLimit = bytes }
+}
+func WithPeriodLimit(dur time.Duration) func(*buff) {
+	return func(b *buff) { b.periodLimit = dur }
+}
+
+func Buff(w Writer, opts ...func(*buff)) Writer {
+	var b = &buff{
+		bytesLimit:  1024 * 1024,
+		periodLimit: time.Minute * 5,
+		w:           w,
+		ch:          make(chan uint8),
+	}
+	for _, e := range opts {
+		e(b)
+	}
+	if b.bytesLimit <= 0 && b.periodLimit <= 0 {
+		panic("invalid argument")
+	}
+
+	go b.service()
 	return b
 }
 
-func (b *buff) append(p []byte) int {
-	b.m.Lock()
-	defer b.m.Unlock()
-	b.bytes += len(p)
-	for b.bytes > b.limit && b.bytes > 0 {
-		b.rntf.Wait()
+func (b *buff) Sync() error { return b.flush() }
+
+func (b *buff) Close() error {
+	if b == nil {
+		return nil
 	}
-	p1 := Pooler.Get(len(p))
-	copy(p1, p)
-	b.s = append(b.s, p1)
-	return len(p)
+	b.m.Lock()
+	if b.close {
+		b.m.Unlock()
+		return nil
+	}
+	b.close = true
+	b.m.Unlock()
+
+	b.ch <- closed
+
+	b.m.Lock()
+	for _, e := range b.s {
+		Pooler.Put(e)
+	}
+	b.s = nil
+	b.m.Unlock()
+
+	return b.w.Close()
 }
 
-func (b *buff) write(to io.Writer) (err error) {
-	defer b.rntf.Broadcast()
+func (b *buff) Write(p []byte) (int, error) {
 	b.m.Lock()
 	defer b.m.Unlock()
-	for i, e := range b.s {
-		if _, err := to.Write(e); err != nil {
+	if b.flushErr != nil {
+		return 0, b.flushErr
+	} else if b.close {
+		return 0, os.ErrClosed
+	}
+
+	i := len(b.s) - 1
+	if i >= 0 && rem(b.s[i]) >= len(p) {
+		b.s[i] = append(b.s[i], p...)
+	} else {
+		p1 := Pooler.Get(max(len(p), 4*1024))
+		n := copy(p1, p)
+		b.s = append(b.s, p1[:n])
+	}
+	b.bytes += len(p)
+
+	if b.bytesLimit > 0 && b.bytes > b.bytesLimit {
+		select {
+		case b.ch <- 0:
+		default:
+		}
+	}
+	return len(p), nil
+}
+func rem(b []byte) int { return cap(b) - len(b) }
+
+func (b *buff) service() {
+	dur := time.Hour * 24
+	if b.periodLimit > 0 {
+		dur = b.periodLimit
+	}
+	tick := time.NewTicker(dur)
+	defer tick.Stop()
+
+	for {
+		select {
+		case v := <-b.ch:
+			if v == closed {
+				return
+			}
+		case <-tick.C:
+		}
+		if err := b.flush(); err != nil {
+			b.m.Lock()
+			b.flushErr = err
+			b.m.Unlock()
+		}
+	}
+}
+
+func (b *buff) flush() error {
+	b.m.Lock()
+	s := slices.Clone(b.s)
+	{
+		clear(b.s)
+		b.s = b.s[:0]
+		b.bytes = 0
+	}
+	b.m.Unlock()
+
+	for _, e := range s {
+		if _, err := b.w.Write(e); err != nil {
 			return err
 		}
 		Pooler.Put(e)
-		b.s[i] = nil
 	}
-	b.s = b.s[:0]
-	return nil
-}
-
-func (b *buff) Close() (_ error) {
-	if b != nil {
-		b.m.Lock()
-		defer b.m.Unlock()
-		for _, e := range b.s {
-			Pooler.Put(e)
-		}
-		b.s = nil
-	}
-	return nil
+	return b.w.Sync()
 }

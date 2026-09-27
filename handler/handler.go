@@ -31,7 +31,7 @@ func (Discard) Handle(context.Context, slog.Record) internal.Error { return nil 
 func (Discard) WithAttrs([]slog.Attr) Handler                      { return Discard{} }
 func (Discard) WithGroup(string) Handler                           { return Discard{} }
 func (Discard) Slog() slog.Handler                                 { return slog.NewTextHandler(io.Discard, nil) }
-func (Discard) Sync(context.Context) internal.Error                { return nil }
+func (Discard) Sync() internal.Error                               { return nil }
 func (Discard) Close() internal.Error                              { return nil }
 
 // common Options

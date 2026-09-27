@@ -113,8 +113,8 @@ func (h *json) Handle(ctx context.Context, r slog.Record) error {
 	return h.h.Handle(ctx, r)
 }
 
-func (h *json) Sync(ctx context.Context) error {
-	return h.w.Sync(ctx)
+func (h *json) Sync() error {
+	return h.w.Sync()
 }
 
 func (t *json) Close() error { return nil }

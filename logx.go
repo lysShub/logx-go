@@ -42,9 +42,9 @@ func New(h handler.Handler, opts ...Option) *Logger {
 	}
 	return l
 }
-func (l *Logger) Close() error                   { return l.h.Close() }
-func (l *Logger) Sync(ctx context.Context) error { return l.h.Sync(ctx) }
-func (l *Logger) Handler() handler.Handler       { return l.h }
+func (l *Logger) Close() error             { return l.h.Close() }
+func (l *Logger) Sync() error              { return l.h.Sync() }
+func (l *Logger) Handler() handler.Handler { return l.h }
 func (l *Logger) Enabled(level Level) bool {
 	return l.h.Enabled(context.Background(), level)
 }

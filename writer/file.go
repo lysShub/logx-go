@@ -1,7 +1,6 @@
 package writer
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,14 +14,14 @@ var _ Writer = (*file)(nil)
 var Stderr Writer = MustFile(os.Stderr)
 var Stdout Writer = MustFile(os.Stdout)
 
-func (f *file) Sync(context.Context) error { return f.File.Sync() }
-
 func File[T *os.File | string](f T) (w Writer, err error) {
 	fh, err := openFile(f, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 	if err != nil {
 		return nil, err
 	}
-	fh.Seek(0, io.SeekEnd) // ensure append position; ignore for non-seekable (pipe, stderr)
+	// ensure append position; ignore for non-seekable (pipe, stderr)
+	fh.Seek(0, io.SeekEnd)
+
 	return &file{File: fh}, nil
 }
 func MustFile[T *os.File | string](f T) Writer {

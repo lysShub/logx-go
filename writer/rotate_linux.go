@@ -5,8 +5,16 @@ package writer
 
 import (
 	"io"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
+)
+
+var (
+	reflink  atomic.Bool
+	sendfile atomic.Bool
+	_        = reflink.Swap(true)
+	_        = sendfile.Swap(true)
 )
 
 func (r *rotate) copyToHead(b []byte, size int64) (int64, error) {
@@ -18,7 +26,7 @@ func (r *rotate) copyToHead(b []byte, size int64) (int64, error) {
 	}
 	n := size - pos
 
-	if r.canReflink {
+	if reflink.Load() {
 		err := unix.IoctlFileCloneRange(int(r.fh.Fd()), &unix.FileCloneRange{
 			Src_fd:      int64(r.fh.Fd()),
 			Src_offset:  uint64(pos),
@@ -28,14 +36,14 @@ func (r *rotate) copyToHead(b []byte, size int64) (int64, error) {
 		if err == nil {
 			return n, nil
 		}
-		r.canReflink = false
+		reflink.Store(false)
 	}
 
-	if r.canSendfile {
+	if sendfile.Load() {
 		if err := r.copyToHeadSendfile(pos, n); err == nil {
 			return n, nil
 		}
-		r.canSendfile = false
+		sendfile.Store(false)
 	}
 
 	return r.copyToHeadRaw(b, pos)

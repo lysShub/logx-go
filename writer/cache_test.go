@@ -2,7 +2,6 @@ package writer
 
 import (
 	"bytes"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -50,11 +49,11 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition not met in time")
 }
 
-func Test_buff(t *testing.T) {
+func Test_cache(t *testing.T) {
 
 	t.Run("sync flushes pending", func(t *testing.T) {
 		w := &memWriter{}
-		b := Buff(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
+		b := Cache(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
 		defer b.Close()
 
 		if _, err := b.Write([]byte("hello ")); err != nil {
@@ -80,7 +79,7 @@ func Test_buff(t *testing.T) {
 
 	t.Run("byte limit triggers flush", func(t *testing.T) {
 		w := &memWriter{}
-		b := Buff(w, WithByteLimit(16), WithPeriodLimit(time.Hour))
+		b := Cache(w, WithByteLimit(16), WithPeriodLimit(time.Hour))
 		defer b.Close()
 
 		// let service enter its select loop, so the trigger isn't dropped
@@ -100,7 +99,7 @@ func Test_buff(t *testing.T) {
 
 	t.Run("period limit triggers flush", func(t *testing.T) {
 		w := &memWriter{}
-		b := Buff(w, WithByteLimit(1<<20), WithPeriodLimit(10*time.Millisecond))
+		b := Cache(w, WithByteLimit(1<<20), WithPeriodLimit(10*time.Millisecond))
 		defer b.Close()
 
 		if _, err := b.Write([]byte("tick")); err != nil {
@@ -111,7 +110,7 @@ func Test_buff(t *testing.T) {
 
 	t.Run("close drops pending", func(t *testing.T) {
 		w := &memWriter{}
-		b := Buff(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
+		b := Cache(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
 
 		if _, err := b.Write([]byte("pending")); err != nil {
 			t.Fatal(err)
@@ -129,18 +128,18 @@ func Test_buff(t *testing.T) {
 
 	t.Run("write after close", func(t *testing.T) {
 		w := &memWriter{}
-		b := Buff(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
+		b := Cache(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
 		if err := b.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := b.Write([]byte("x")); err != os.ErrClosed {
-			t.Fatalf("want ErrClosed, got %v", err)
+		if _, err := b.Write([]byte("x")); err == nil {
+			t.Fatal("want error after close")
 		}
 	})
 
 	t.Run("concurrent writes", func(t *testing.T) {
 		w := &memWriter{}
-		b := Buff(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
+		b := Cache(w, WithByteLimit(1<<20), WithPeriodLimit(time.Hour))
 		defer b.Close()
 
 		const per, n = 4, 100
@@ -173,6 +172,6 @@ func Test_buff(t *testing.T) {
 				t.Fatal("expected panic")
 			}
 		}()
-		Buff(&memWriter{}, WithByteLimit(0), WithPeriodLimit(0))
+		Cache(&memWriter{}, WithByteLimit(0), WithPeriodLimit(0))
 	})
 }

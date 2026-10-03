@@ -4,17 +4,17 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math"
 	"strconv"
 	"time"
 
-	"github.com/lysShub/logx-go/internal"
 	"github.com/lysShub/logx-go/writer"
 )
 
 // reference [slog.Handler]
 type Handler interface {
 	Enabled(context.Context, slog.Level) bool
-	Handle(context.Context, slog.Record) internal.Error
+	Handle(context.Context, slog.Record) error
 	WithAttrs(attrs []slog.Attr) Handler
 	WithGroup(name string) Handler
 	Slog() slog.Handler
@@ -22,25 +22,14 @@ type Handler interface {
 	io.Closer
 }
 
-// Discard discards all records, it is the default [Handler] of logx.
-type Discard struct{} //
-var _ Handler = Discard{}
-
-func (Discard) Enabled(context.Context, slog.Level) bool           { return false }
-func (Discard) Handle(context.Context, slog.Record) internal.Error { return nil }
-func (Discard) WithAttrs([]slog.Attr) Handler                      { return Discard{} }
-func (Discard) WithGroup(string) Handler                           { return Discard{} }
-func (Discard) Slog() slog.Handler                                 { return slog.NewTextHandler(io.Discard, nil) }
-func (Discard) Sync() internal.Error                               { return nil }
-func (Discard) Close() internal.Error                              { return nil }
-
 // common Options
 type Options struct {
-	TimeLocation *time.Location        // default [time.Local]
-	TimeFormat   string                // default [RFC3339Millis]
-	LevelString  map[slog.Level]string // default [LevelString]
-	SyncLevel    slog.Level            // record.Level >= SyncLevel 时自动 Sync。default [slog.LevelError]
-	slog.HandlerOptions
+	TimeLocation    *time.Location                               // default [time.Local]
+	TimeFormat      string                                       // default [RFC3339Millis]
+	LevelString     map[slog.Level]string                        // default [LevelString]
+	SyncLevel       slog.Level                                   // record.Level >= SyncLevel 时自动 Sync, default [slog.LevelError]
+	Level, MaxLevel slog.Leveler                                 // [Level, MaxLevel)
+	ReplaceAttr     func(groups []string, a slog.Attr) slog.Attr //
 }
 
 func (o *Options) Init() {
@@ -55,6 +44,12 @@ func (o *Options) Init() {
 	}
 	if o.SyncLevel == 0 {
 		o.SyncLevel = slog.LevelError
+	}
+	if o.Level == nil {
+		o.Level = slog.Level(0)
+	}
+	if o.MaxLevel == nil {
+		o.MaxLevel = slog.Level(math.MaxInt)
 	}
 }
 

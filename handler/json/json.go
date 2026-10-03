@@ -36,8 +36,13 @@ func WithLevelString(m map[slog.Level]string) Option {
 }
 
 // WithLeveler sets the minimum log level to output, default [slog.LevelInfo].
-func WithLeveler(level slog.Leveler) Option {
-	return func(o *handler.Options) { o.Level = level }
+func WithLeveler(level slog.Leveler, max ...slog.Level) Option {
+	return func(o *handler.Options) {
+		o.Level = level
+		if len(max) > 0 {
+			o.MaxLevel = max[0]
+		}
+	}
 }
 
 // WithSyncLevel sets the level that triggers auto Sync when a record.Level >= SyncLevel, default [slog.LevelError].
@@ -92,7 +97,7 @@ func (h *json) replaceAttr(groups []string, a slog.Attr) slog.Attr {
 
 func (h *json) Slog() slog.Handler { return &handler.WrapHandler{Handler: h} }
 func (h *json) Enabled(ctx context.Context, l slog.Level) bool {
-	return h.h.Enabled(ctx, l)
+	return h.c.Level.Level() <= l && l < h.c.MaxLevel.Level()
 }
 func (h *json) WithAttrs(attrs []slog.Attr) handler.Handler {
 	return &json{
@@ -108,13 +113,15 @@ func (h *json) WithGroup(name string) handler.Handler {
 		h: h.h.WithGroup(name),
 	}
 }
+func (h *json) Sync() error  { return h.w.Sync() }
+func (h *json) Close() error { return h.w.Close() }
 
 func (h *json) Handle(ctx context.Context, r slog.Record) error {
-	return h.h.Handle(ctx, r)
+	if err := h.h.Handle(ctx, r); err != nil {
+		return err
+	}
+	if r.Level >= h.c.SyncLevel {
+		return h.w.Sync()
+	}
+	return nil
 }
-
-func (h *json) Sync() error {
-	return h.w.Sync()
-}
-
-func (t *json) Close() error { return nil }

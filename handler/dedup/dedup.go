@@ -20,7 +20,6 @@ type dedup struct {
 } //
 var _ handler.Handler = (*dedup)(nil)
 
-type record struct{ v atomic.Uint64 }
 type option struct {
 	hash  func(slog.Record) uint32
 	ttl   uint32 // seconds
@@ -79,6 +78,9 @@ func (d *dedup) Handle(ctx context.Context, rec slog.Record) error {
 	}
 	return d.Handler.Handle(ctx, rec)
 }
+
+type record struct{ v atomic.Uint64 }
+
 func (r *record) set(hash, stamp uint32) {
 	r.v.Store(uint64(hash) | uint64(stamp)<<32)
 }
@@ -102,10 +104,9 @@ func hashStacks(hash uint64, a slog.Attr) (uint64, bool) {
 	var ok = false
 	if a.Key == stack.StackKey {
 		v := a.Value.Any()
-		if st, is := v.(stack.StackTrace); is {
-			const word = int(unsafe.Sizeof(st[0]))
+		if s, is := v.(stack.Stack); is {
+			b := unsafe.Slice((*byte)(unsafe.Pointer(s)), unsafe.Sizeof(*s))
 
-			b := unsafe.Slice((*byte)(unsafe.Pointer(&st[0])), len(st)*word)
 			hash = xxh3.HashSeed(b, hash)
 			ok = true
 		}

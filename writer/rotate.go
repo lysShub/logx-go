@@ -13,12 +13,10 @@ type rotate struct {
 	mu   sync.Mutex
 	fh   *os.File
 	size int64
-
-	canReflink  bool
-	canSendfile bool
 } //
 var _ Writer = (*rotate)(nil)
 
+// Rotate simple single file ratate
 func Rotate[T *os.File | string](f T, limit int) (w Writer, err error) {
 	fh, err := openFile(f, os.O_CREATE|os.O_RDWR)
 	if err != nil {
@@ -43,11 +41,9 @@ func rotateRaw(fh *os.File, limit int) (w Writer, err error) {
 	}
 
 	r := &rotate{
-		limit:       int64(limit),
-		fh:          fh,
-		size:        st.Size(),
-		canReflink:  true,
-		canSendfile: true,
+		limit: int64(limit),
+		fh:    fh,
+		size:  st.Size(),
 	}
 	if r.size-r.limit > r.limit {
 		err := r.rotate()

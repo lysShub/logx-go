@@ -26,7 +26,10 @@ func (t *tee) Enabled(ctx context.Context, l slog.Level) bool {
 func (t *tee) Handle(ctx context.Context, r slog.Record) error {
 	var errs []error
 	for _, h := range t.hs {
-		if e := h.Handle(ctx, r.Clone()); e != nil {
+		if !h.Enabled(ctx, r.Level) {
+			continue
+		}
+		if e := h.Handle(ctx, r); e != nil {
 			errs = append(errs, e)
 		}
 	}

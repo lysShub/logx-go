@@ -2,15 +2,17 @@ package logx
 
 import (
 	"log/slog"
+	"reflect"
 	"sync/atomic"
 
-	"github.com/lysShub/logx-go/handler"
+	"github.com/lysShub/logx-go/handler/discard"
 	"github.com/lysShub/logx-go/stack"
 )
 
 var (
-	_             = SetDefault(New(handler.Discard{}))
+	_             = SetDefault(New(discard.Discard{}))
 	defaultLogger atomic.Pointer[Logger]
+	errorType     = reflect.TypeFor[error]()
 )
 
 func Default() *Logger {
@@ -23,5 +25,5 @@ func SetDefault(l *Logger) (old *Logger) {
 }
 
 func Stack() Attr {
-	return Attr{Key: stack.StackKey, Value: AnyValue(stack.New(stack.Trace, 3))}
+	return Attr{Key: stack.StackKey, Value: AnyValue(stack.New(3))}
 }

@@ -3,12 +3,28 @@ package json_test
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/lysShub/logx-go/handler/json"
+	"github.com/lysShub/logx-go/stack"
 )
+
+func TestXxxx(t *testing.T) {
+
+	h := slog.NewJSONHandler(os.Stdout, nil)
+	// h1 := h.WithGroup("a")
+	// h2 := h1.WithGroup("b")
+
+	slog.SetDefault(slog.New(h))
+
+	var s [32]uintptr
+
+	slog.Info("xxx", slog.String("name", "xxx"), slog.Any(stack.StackKey, stack.Stack(&s)))
+
+}
 
 type mockWriter struct {
 	mu     sync.Mutex

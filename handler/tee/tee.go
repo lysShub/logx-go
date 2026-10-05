@@ -24,16 +24,16 @@ func (t *tee) Enabled(ctx context.Context, l slog.Level) bool {
 	return false
 }
 func (t *tee) Handle(ctx context.Context, r slog.Record) error {
-	var errs []error
+	var err error
 	for _, h := range t.hs {
 		if !h.Enabled(ctx, r.Level) {
 			continue
 		}
-		if e := h.Handle(ctx, r); e != nil {
-			errs = append(errs, e)
+		if e := h.Handle(ctx, r.Clone()); e != nil && err == nil {
+			err = e
 		}
 	}
-	return errors.Join(errs...)
+	return err
 }
 func (t *tee) WithAttrs(attrs []slog.Attr) handler.Handler {
 	var hs = make([]handler.Handler, len(t.hs))

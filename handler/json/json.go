@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"time"
-	"unsafe"
 
 	"github.com/lysShub/logx-go/handler"
 	"github.com/lysShub/logx-go/writer"
@@ -25,14 +24,14 @@ func WithTimeLocation(loc *time.Location) Option {
 	return func(o *handler.Options) { o.TimeLocation = loc }
 }
 
-// WithTimeFormat sets the format of log time, default [handler.RFC3339Millis] "2006-01-02T15:04:05.000Z07:00".
-func WithTimeFormat(format string) Option {
-	return func(o *handler.Options) { o.TimeFormat = format }
+// WithTimeValue sets the format of log time, default [handler.RFC3339Millis] "2006-01-02T15:04:05.000Z07:00".
+func WithTimeValue(f handler.TimeValue) Option {
+	return func(o *handler.Options) { o.TimeValue = f }
 }
 
-// WithLevelString sets the level to string mapping, default {debug, info, warn, error, fatal}.
-func WithLevelString(m map[slog.Level]string) Option {
-	return func(o *handler.Options) { o.LevelString = m }
+// WithLevelValue sets the level to string mapping, default {debug, info, warn, error, fatal}.
+func WithLevelValue(f handler.LevelValue) Option {
+	return func(o *handler.Options) { o.LevelValue = f }
 }
 
 // WithLeveler sets the minimum log level to output, default [slog.LevelInfo].
@@ -74,17 +73,13 @@ func (h *json) replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if len(groups) == 0 {
 		switch a.Key {
 		case slog.TimeKey:
-			b := handler.AppendTime(make([]byte, 0, 32), a.Value.Time().In(h.c.TimeLocation), h.c.TimeFormat)
-			str := unsafe.String(unsafe.SliceData(b), len(b))
-			a.Value = slog.StringValue(str)
+			//todo: validate years are 4 digits
+			t := a.Value.Time().In(h.c.TimeLocation)
+			a.Value = h.c.TimeValue(t)
 		case slog.LevelKey:
 			l, ok := a.Value.Any().(slog.Level)
 			if ok {
-				if s, exist := h.c.LevelString[l]; exist {
-					a.Value = slog.StringValue(s)
-				} else {
-					a.Value = slog.StringValue(l.String())
-				}
+				a.Value = h.c.LevelValue(l)
 			}
 		default:
 		}

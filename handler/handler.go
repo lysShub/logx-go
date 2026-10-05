@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"math"
-	"strconv"
 	"time"
 
 	"github.com/lysShub/logx-go/writer"
@@ -24,23 +23,26 @@ type Handler interface {
 
 // common Options
 type Options struct {
-	TimeLocation    *time.Location                               // default [time.Local]
-	TimeFormat      string                                       // default [RFC3339Millis]
-	LevelString     map[slog.Level]string                        // default [LevelString]
-	SyncLevel       slog.Level                                   // record.Level >= SyncLevel 时自动 Sync, default [slog.LevelError]
-	Level, MaxLevel slog.Leveler                                 // [Level, MaxLevel)
-	ReplaceAttr     func(groups []string, a slog.Attr) slog.Attr //
+	TimeLocation *time.Location                               // default [time.Local]
+	TimeValue    TimeValue                                    // default [RFC3339Millis]
+	LevelValue   LevelValue                                   // default [LevelString]
+	SyncLevel    slog.Level                                   // default [slog.LevelError], while record.Level >= SyncLevel, auto call h.Sync()
+	Level        slog.Leveler                                 // default [slog.LevelInfo]
+	MaxLevel     slog.Leveler                                 // default [math.MaxInt], range in [Level, MaxLevel)
+	ReplaceAttr  func(groups []string, a slog.Attr) slog.Attr //
 }
+type TimeValue func(t time.Time) slog.Value
+type LevelValue func(l slog.Level) slog.Value
 
 func (o *Options) Init() {
 	if o.TimeLocation == nil {
 		o.TimeLocation = time.Local
 	}
-	if o.TimeFormat == "" {
-		o.TimeFormat = RFC3339Millis
+	if o.TimeValue == nil {
+		o.TimeValue = RFC3339Millis
 	}
-	if o.LevelString == nil {
-		o.LevelString = LevelString
+	if o.LevelValue == nil {
+		o.LevelValue = LevelString
 	}
 	if o.SyncLevel == 0 {
 		o.SyncLevel = slog.LevelError
@@ -53,37 +55,27 @@ func (o *Options) Init() {
 	}
 }
 
-var LevelString = map[slog.Level]string{
-	slog.LevelDebug:     "debug",
-	slog.LevelInfo:      "info",
-	slog.LevelWarn:      "warn",
-	slog.LevelError:     "error",
-	slog.LevelError + 4: "fatal",
+func LevelString(l slog.Level) slog.Value {
+	i := int(l + (-slog.LevelDebug))
+	if i >= 0 && int(i) < len(levelString) && levelString[i] != "" {
+		return slog.StringValue(levelString[i])
+	} else {
+		return slog.StringValue(l.String())
+	}
+} //
+var levelString = [-slog.LevelDebug + slog.LevelError + 5]string{
+	-slog.LevelDebug + slog.LevelDebug:     "debug",
+	-slog.LevelDebug + slog.LevelInfo:      "info",
+	-slog.LevelDebug + slog.LevelWarn:      "warn",
+	-slog.LevelDebug + slog.LevelError:     "error",
+	-slog.LevelDebug + slog.LevelError + 4: "fatal",
 }
 
-const (
-	RFC3339Millis   = "2006-01-02T15:04:05.000Z07:00"
-	UnixFormat      = "unix"
-	UnixMilliFormat = "unix_milli"
-	UnixMicroFormat = "unix_micro"
-	UnixNanoFormat  = "unix_nano"
-)
-
-func AppendTime(b []byte, t time.Time, format string) []byte {
-	switch format {
-	case RFC3339Millis:
-		return appendRFC3339Millis(b, t)
-	case UnixFormat:
-		return strconv.AppendInt(b, t.Unix(), 10)
-	case UnixMilliFormat:
-		return strconv.AppendInt(b, t.UnixMilli(), 10)
-	case UnixMicroFormat:
-		return strconv.AppendInt(b, t.UnixMicro(), 10)
-	case UnixNanoFormat:
-		return strconv.AppendInt(b, t.UnixNano(), 10)
-	default:
-		return t.AppendFormat(b, format)
-	}
+// RFC3339Millis marshal to RFC3339Millis string
+func RFC3339Millis(t time.Time) slog.Value {
+	var b = make([]byte, 0, 24)
+	b = appendRFC3339Millis(b, t)
+	return slog.StringValue(string(b))
 }
 func appendRFC3339Millis(b []byte, t time.Time) []byte {
 	// copy from [slog.appendRFC3339Millis]

@@ -152,7 +152,7 @@ func Test_rotate(t *testing.T) {
 
 		// trigger rotation
 		for i := 0; i < 25; i++ {
-			w.Write([]byte(fmt.Sprintf("line-%03d\n", i)))
+			w.Write(fmt.Appendf(nil, "line-%03d\n", i))
 		}
 
 		// write more after rotation

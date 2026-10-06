@@ -13,7 +13,7 @@ type Stack = *stack
 func (s Stack) MarshalJSONTo(enc *jsontext.Encoder) error {
 	fs := runtime.CallersFrames(s[:])
 
-	var buf = make([]byte, 512)
+	var buf = make([]byte, 256)
 	if s[0] == 0 {
 		return enc.WriteToken(jsontext.Null)
 	} else if s[1] == 0 {

@@ -221,3 +221,31 @@ func Test_RefCount(t *testing.T) {
 		t.Fatalf("after derived close: wrapped called %d times, want 1", c.n)
 	}
 }
+
+type fakePooler struct {
+	gets int
+	puts int
+}
+
+func (p *fakePooler) Get(n int) []byte {
+	p.gets++
+	return make([]byte, n)
+}
+func (p *fakePooler) Put(b []byte) {
+	p.puts++
+}
+
+func Test_Pooler(t *testing.T) {
+	p := &fakePooler{}
+	d := dedup.New(&counter{}, dedup.WithPooler(p))
+	if p.gets != 1 {
+		t.Fatalf("gets: got %d, want 1", p.gets)
+	}
+
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if p.puts != 1 {
+		t.Fatalf("puts: got %d, want 1", p.puts)
+	}
+}

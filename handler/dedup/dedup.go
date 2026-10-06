@@ -16,33 +16,43 @@ import (
 type dedup struct {
 	handler.Handler
 	o    option
-	recs []record
+	recs *records
 } //
 var _ handler.Handler = (*dedup)(nil)
 
 type option struct {
 	hash  func(slog.Record) uint32
 	ttl   uint32 // seconds
-	count int
+	bytes int
+	reuse bool
 }
 type Option func(*option)
 
 var defaultOption = option{
 	hash:  defalutHash,
 	ttl:   15,
-	count: 512, // 512 * 8 = 4KiB
+	bytes: 4096, // 4KiB = 512 slots
+	reuse: true,
 }
 
+// WithHash sets the record hash function, default [defalutHash].
 func WithHash(fn func(slog.Record) uint32) func(*option) {
 	return func(c *option) { c.hash = fn }
 }
 
+// WithTTL sets the dedup time window, default 15s.
 func WithTTL(ttl time.Duration) func(*option) {
 	return func(c *option) { c.ttl = uint32(ttl.Seconds()) }
 }
 
-func WithCacheSize(count int) func(*option) {
-	return func(o *option) { o.count = count }
+// WithBytes sets the dedup table size in bytes, default 4096.
+func WithBytes(bytes int) func(*option) {
+	return func(o *option) { o.bytes = bytes }
+}
+
+// WithReuse shares one dedup table across derived handlers, default true.
+func WithReuse(reuse bool) func(*option) {
+	return func(o *option) { o.reuse = reuse }
 }
 
 func New(h handler.Handler, opts ...Option) handler.Handler {
@@ -53,34 +63,86 @@ func New(h handler.Handler, opts ...Option) handler.Handler {
 	for _, e := range opts {
 		e(&d.o)
 	}
-	d.recs = bytespool.Get[[]record, record](d.o.count)
+	d.recs = newRecords(d.o.bytes)
 	return d
 }
 func (d *dedup) Close() error {
-	bytespool.Put[[]record, record](d.recs)
+	d.recs.close()
 	return d.Handler.Close()
 }
 
 func (d *dedup) Handle(ctx context.Context, rec slog.Record) error {
 	if sum := d.o.hash(rec); sum != 0 {
-		now := uint32(time.Now().Unix())
-
-		t := &d.recs[sum%uint32(len(d.recs))]
-		if hash, stamp := t.get(); hash == sum {
-			if now-stamp < d.o.ttl {
-				return nil
-			} else {
-				t.set(sum, now)
-			}
-		} else {
-			t.set(sum, now)
+		if d.recs.dedup(sum, d.o.ttl) {
+			return nil
 		}
 	}
 	return d.Handler.Handle(ctx, rec)
 }
 
+func (d *dedup) WithAttrs(attrs []slog.Attr) handler.Handler {
+	if len(attrs) == 0 {
+		return d
+	}
+	return d.derive(d.Handler.WithAttrs(attrs))
+}
+
+func (d *dedup) WithGroup(name string) handler.Handler {
+	if name == "" {
+		return d
+	}
+	return d.derive(d.Handler.WithGroup(name))
+}
+
+func (d *dedup) Slog() slog.Handler { return &handler.WrapHandler{Handler: d} }
+
+func (d *dedup) derive(h handler.Handler) *dedup {
+	d2 := &dedup{Handler: h, o: d.o}
+	if d.o.reuse {
+		d.recs.ref()
+		d2.recs = d.recs
+	} else {
+		d2.recs = newRecords(d.o.bytes)
+	}
+	return d2
+}
+
+type records struct {
+	l    []record
+	refs atomic.Int64
+}
 type record struct{ v atomic.Uint64 }
 
+func newRecords(bytes int) *records {
+	n := bytes / int(unsafe.Sizeof(record{}))
+	r := &records{l: bytespool.Get[[]record, record](n)}
+	r.refs.Store(1)
+	return r
+}
+func (r *records) ref() {
+	r.refs.Add(1)
+}
+func (r *records) close() {
+	if r.refs.Add(-1) == 0 {
+		bytespool.Put[[]record, record](r.l)
+	}
+}
+
+func (r *records) dedup(sum uint32, ttl uint32) (duplicated bool) {
+	now := uint32(time.Now().Unix())
+
+	t := &r.l[sum%uint32(len(r.l))]
+	if hash, stamp := t.get(); hash == sum {
+		if now-stamp < ttl {
+			return true
+		} else {
+			t.set(sum, now)
+		}
+	} else {
+		t.set(sum, now)
+	}
+	return false
+}
 func (r *record) set(hash, stamp uint32) {
 	r.v.Store(uint64(hash) | uint64(stamp)<<32)
 }
@@ -95,21 +157,16 @@ func defalutHash(r slog.Record) uint32 {
 	}
 	var hash = xxh3.HashString(r.Message)
 	r.Attrs(func(a slog.Attr) (next bool) {
-		hash, next = hashStacks(hash, a)
-		return !next
+		if a.Key == stack.StackKey {
+			v := a.Value.Any()
+			if s, is := v.(stack.Stack); is {
+				b := unsafe.Slice((*byte)(unsafe.Pointer(s)), unsafe.Sizeof(*s))
+
+				hash = xxh3.HashSeed(b, hash)
+				return false
+			}
+		}
+		return true
 	})
 	return uint32(hash>>32) ^ uint32(hash)
-}
-func hashStacks(hash uint64, a slog.Attr) (uint64, bool) {
-	var ok = false
-	if a.Key == stack.StackKey {
-		v := a.Value.Any()
-		if s, is := v.(stack.Stack); is {
-			b := unsafe.Slice((*byte)(unsafe.Pointer(s)), unsafe.Sizeof(*s))
-
-			hash = xxh3.HashSeed(b, hash)
-			ok = true
-		}
-	}
-	return hash, ok
 }

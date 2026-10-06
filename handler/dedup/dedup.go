@@ -189,10 +189,11 @@ func defalutHash(r slog.Record) uint32 {
 	r.Attrs(func(a slog.Attr) (next bool) {
 		if a.Key == stack.StackKey {
 			v := a.Value.Any()
-			if s, is := v.(stack.Stack); is && s != nil {
-				b := unsafe.Slice((*byte)(unsafe.Pointer(s)), unsafe.Sizeof(*s))
+			if s, is := v.(stack.Stack); is && len(s) > 0 {
+				ptr := (*byte)(unsafe.Pointer(unsafe.SliceData(s)))
+				len := len(s) * int(unsafe.Sizeof(uintptr(0)))
 
-				hash = xxh3.HashSeed(b, hash)
+				hash = xxh3.HashSeed(unsafe.Slice(ptr, len), hash)
 				return false
 			}
 		}

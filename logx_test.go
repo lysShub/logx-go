@@ -41,9 +41,9 @@ func (c *counter) stack() stack.Stack {
 func Test_Stack(t *testing.T) {
 	t.Run("warn", func(t *testing.T) {
 		c := &counter{}
-		logx.New(c).Warn(errors.New("boom"))
+		logx.New(c, logx.WithStackLevel(logx.LevelWarn)).Warn(errors.New("boom"))
 		if c.stack() == nil {
-			t.Fatal("warn should attach a captured stack, got nil")
+			t.Fatal("warn should attach a stack when StackLevel <= warn, got nil")
 		}
 	})
 

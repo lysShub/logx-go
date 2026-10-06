@@ -3,27 +3,28 @@ package stack
 import (
 	"encoding/json/jsontext"
 	"runtime"
+	"slices"
 	"strconv"
 	"unsafe"
 )
 
-type stack [32]uintptr
-type Stack = *stack
+type Stack []uintptr
 
 func (s Stack) MarshalJSONTo(enc *jsontext.Encoder) error {
-	fs := runtime.CallersFrames(s[:])
+	fs := runtime.CallersFrames(s)
 
 	var buf = make([]byte, 256)
-	if s[0] == 0 {
+	switch len(s) {
+	case 0:
 		return enc.WriteToken(jsontext.Null)
-	} else if s[1] == 0 {
+	case 1:
 		f, _ := fs.Next()
 		b := buf[:0]
 		b = append(b, f.File...)
 		b = append(b, ':')
 		b = strconv.AppendInt(b, int64(f.Line), 10)
 		return enc.WriteToken(jsontext.String(str(b)))
-	} else {
+	default:
 		if err := enc.WriteToken(jsontext.BeginArray); err != nil {
 			return err
 		}
@@ -44,30 +45,29 @@ func (s Stack) MarshalJSONTo(enc *jsontext.Encoder) error {
 		return enc.WriteToken(jsontext.EndArray)
 	}
 }
-
 func str(b []byte) string { return unsafe.String(unsafe.SliceData(b), len(b)) }
 
 // New captures a [Stack], skip is passed to [runtime.Callers].
 func New(skip ...int) Stack {
-	var pcs [32]uintptr
+	var pcs [64]uintptr
 
 	var n = 2
 	if len(skip) > 0 {
 		n = skip[0]
 	}
-	runtime.Callers(n, pcs[:])
-	return Stack(&pcs)
+	m := runtime.Callers(n, pcs[:])
+	return Stack(slices.Clone(pcs[:m]))
 }
 
 const StackKey = "stack"
 
 func Source(skip ...int) Stack {
-	var pcs [32]uintptr
+	var pc = []uintptr{0: 0}
 
 	var n = 2
 	if len(skip) > 0 {
 		n = skip[0]
 	}
-	runtime.Callers(n, pcs[:1])
-	return Stack(&pcs)
+	runtime.Callers(n, pc)
+	return Stack(pc)
 }

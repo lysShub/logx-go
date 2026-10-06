@@ -97,12 +97,10 @@ func Test_Stack(t *testing.T) {
 	d := dedup.New(c)
 	ctx := context.Background()
 
-	var s1, s2 [32]uintptr
-	s1[0] = 1
-	s2[0] = 2
+	var s1, s2 = []uintptr{1}, []uintptr{2}
 
 	r1 := warn("m")
-	r1.AddAttrs(slog.Any(stack.StackKey, stack.Stack(&s1)))
+	r1.AddAttrs(slog.Any(stack.StackKey, stack.Stack(s1)))
 	if err := d.Handle(ctx, r1); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +112,7 @@ func Test_Stack(t *testing.T) {
 	}
 
 	r2 := warn("m")
-	r2.AddAttrs(slog.Any(stack.StackKey, stack.Stack(&s2)))
+	r2.AddAttrs(slog.Any(stack.StackKey, stack.Stack(s2)))
 	if err := d.Handle(ctx, r2); err != nil {
 		t.Fatal(err)
 	}

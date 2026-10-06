@@ -41,7 +41,7 @@ func (c *counter) stack() stack.Stack {
 func Test_Stack(t *testing.T) {
 	t.Run("warn", func(t *testing.T) {
 		c := &counter{}
-		logx.New(c).Warn("boom")
+		logx.New(c).Warn(errors.New("boom"))
 		if c.stack() == nil {
 			t.Fatal("warn should attach a captured stack, got nil")
 		}
@@ -73,11 +73,11 @@ func Test_Stack(t *testing.T) {
 }
 
 func Test_Message(t *testing.T) {
-	t.Run("string", func(t *testing.T) {
+	t.Run("info", func(t *testing.T) {
 		c := &counter{}
-		logx.New(c).Warn("boom")
-		if c.last.Message != "boom" {
-			t.Fatalf("message got %q, want %q", c.last.Message, "boom")
+		logx.New(c).Info("hi")
+		if c.last.Message != "hi" {
+			t.Fatalf("message got %q, want %q", c.last.Message, "hi")
 		}
 	})
 
@@ -88,6 +88,41 @@ func Test_Message(t *testing.T) {
 			t.Fatalf("message got %q, want %q", c.last.Message, "kaboom")
 		}
 	})
+
+	t.Run("msg_override", func(t *testing.T) {
+		c := &counter{}
+		logx.New(c).Error(errors.New("kaboom"), logx.Msg("custom"))
+		if c.last.Message != "custom" {
+			t.Fatalf("message got %q, want %q", c.last.Message, "custom")
+		}
+
+		var errVal string
+		hasMsg := false
+		c.last.Attrs(func(a slog.Attr) bool {
+			switch a.Key {
+			case logx.ErrorKey:
+				errVal = a.Value.String()
+			case logx.MessageKey:
+				hasMsg = true
+			}
+			return true
+		})
+		if errVal != "kaboom" {
+			t.Fatalf("err attr got %q, want %q", errVal, "kaboom")
+		}
+		if hasMsg {
+			t.Fatal("msg attr should have been consumed by Msg override")
+		}
+	})
+}
+
+func Test_AttrsRestored(t *testing.T) {
+	attrs := []logx.Attr{logx.Msg("custom")}
+	logx.New(&counter{}).Warn(errors.New("boom"), attrs...)
+
+	if attrs[0].Key != logx.MessageKey || attrs[0].Value.String() != "custom" {
+		t.Fatalf("caller attrs mutated: %+v", attrs[0])
+	}
 }
 
 func Test_HandlerErr(t *testing.T) {
@@ -133,7 +168,7 @@ func Test_DefaultLogger(t *testing.T) {
 	old := logx.SetDefault(logx.New(c))
 	defer logx.SetDefault(old)
 
-	logx.Warn("boom")
+	logx.Warn(errors.New("boom"))
 	if c.n != 1 {
 		t.Fatalf("default logger handled %d times, want 1", c.n)
 	}

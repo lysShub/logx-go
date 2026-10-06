@@ -4,10 +4,9 @@ package logx
 
 import (
 	"context"
+	"log/slog"
 	"os"
-	"reflect"
 	"syscall"
-	"unsafe"
 
 	"github.com/lysShub/logx-go/handler"
 	"github.com/lysShub/logx-go/stack"
@@ -16,16 +15,14 @@ import (
 func Log(level Level, msg string, attrs ...Attr) { defaultLogger.Load().log(level, msg, nil, attrs...) }
 func Debug(msg string, attrs ...Attr)            { defaultLogger.Load().Debug(msg, attrs...) }
 func Info(msg string, attrs ...Attr)             { defaultLogger.Load().Info(msg, attrs...) }
-func Warn[T str | err](msg T, attrs ...Attr)     { defaultLogger.Load().Warn(msg, attrs...) }
-func Error[T str | err](msg T, attrs ...Attr)    { defaultLogger.Load().Error(msg, attrs...) }
-func Fatal[T str | err](msg T, attrs ...Attr)    { defaultLogger.Load().Fatal(msg, attrs...) }
+func Warn(err error, attrs ...Attr)              { defaultLogger.Load().Warn(err, attrs...) }
+func Error(err error, attrs ...Attr)             { defaultLogger.Load().Error(err, attrs...) }
+func Fatal(err error, attrs ...Attr)             { defaultLogger.Load().Fatal(err, attrs...) }
 
 type Logger struct {
 	h handler.Handler
 	o option
 }
-type str = string
-type err = any
 
 func New(h handler.Handler, opts ...Option) *Logger {
 	l := &Logger{
@@ -64,14 +61,14 @@ func (l *Logger) Debug(msg string, attrs ...Attr) {
 func (l *Logger) Info(msg string, attrs ...Attr) {
 	l.logmsg(LevelInfo, msg, attrs...)
 }
-func (l *Logger) Warn[T str | err](msg T, attrs ...Attr) {
-	l.logerr(LevelWarn, msg, attrs...)
+func (l *Logger) Warn(err error, attrs ...Attr) {
+	l.logerr(LevelWarn, err, attrs...)
 }
-func (l *Logger) Error[T str | err](msg T, attrs ...Attr) {
-	l.logerr(LevelError, msg, attrs...)
+func (l *Logger) Error(err error, attrs ...Attr) {
+	l.logerr(LevelError, err, attrs...)
 }
-func (l *Logger) Fatal[T str | err](msg T, attrs ...Attr) {
-	l.logerr(LevelFatal, msg, attrs...)
+func (l *Logger) Fatal(err error, attrs ...Attr) {
+	l.logerr(LevelFatal, err, attrs...)
 }
 
 func (l *Logger) logmsg(level Level, msg string, attrs ...Attr) {
@@ -81,34 +78,36 @@ func (l *Logger) logmsg(level Level, msg string, attrs ...Attr) {
 	l.log(level, msg, nil, attrs...)
 }
 
-func (l *Logger) logerr[T str | err](level Level, err T, attrs ...Attr) {
+func (l *Logger) logerr(level Level, err error, attrs ...Attr) {
 	if !l.h.Enabled(context.Background(), level) {
 		return
 	}
-	s, e := specialize(err)
+	msg := err.Error()
+
+	var (
+		bak  Attr
+		baki int = -1
+	)
+	for i, attr := range attrs {
+		if attr.Key == MessageKey && attr.Value.Kind() == KindString {
+			attrs[i] = slog.String(ErrorKey, msg)
+			msg = attr.Value.String()
+
+			baki, bak = i, attr
+			break
+		}
+	}
 
 	var st stack.Stack
-	if e != nil && level >= l.o.StackLevel {
+	if level >= l.o.StackLevel {
 		// 错误现场 替代 日志现场, 通常是相近的
-		st = l.o.ErrStack(e)
+		st = l.o.ErrStack(err)
 	}
-	l.log(level, s, st, attrs...)
-}
-func specialize[T str | err](v T) (msg string, err error) {
-	t := reflect.TypeFor[T]()
-	if t.Kind() == reflect.String {
-		msg, err = *(*string)(unsafe.Pointer(&v)), nil
-	} else {
-		if t == errorType {
-			msg, err = "", *(*error)(unsafe.Pointer(&v))
-		} else if e1, ok := any(v).(error); ok {
-			msg, err = "", e1
-		} else {
-			panic("not support type")
-		}
-		msg = err.Error()
+	l.log(level, msg, st, attrs...)
+
+	if baki >= 0 {
+		attrs[baki] = bak
 	}
-	return msg, err
 }
 
 func (l *Logger) log(level Level, msg string, st stack.Stack, attrs ...Attr) {

@@ -2,17 +2,16 @@ package logx
 
 import (
 	"log/slog"
-	"reflect"
+	"os"
 	"sync/atomic"
 
-	"github.com/lysShub/logx-go/handler/discard"
+	"github.com/lysShub/logx-go/handler/json"
 	"github.com/lysShub/logx-go/stack"
 )
 
 var (
-	_             = SetDefault(New(discard.Discard{}))
+	_             = SetDefault(New(json.NewJSON(os.Stdout)))
 	defaultLogger atomic.Pointer[Logger]
-	errorType     = reflect.TypeFor[error]()
 )
 
 func Default() *Logger {

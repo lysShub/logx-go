@@ -249,3 +249,23 @@ func Test_Pooler(t *testing.T) {
 		t.Fatalf("puts: got %d, want 1", p.puts)
 	}
 }
+
+func Test_NilStack(t *testing.T) {
+	c := &counter{}
+	d := dedup.New(c)
+	ctx := context.Background()
+
+	var s stack.Stack // nil
+	r := warn("m")
+	r.AddAttrs(slog.Any(stack.StackKey, s))
+
+	if err := d.Handle(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Handle(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if c.n != 1 {
+		t.Fatalf("nil stack: wrapped called %d times, want 1", c.n)
+	}
+}

@@ -1,3 +1,5 @@
+// github.com/lysShub/logx-go
+
 package logx
 
 import (
@@ -114,7 +116,7 @@ func (l *Logger) log(level Level, msg string, st stack.Stack, attrs ...Attr) {
 	rec.AddAttrs(attrs...)
 
 	if level >= l.o.StackLevel {
-		if len(st) == 0 {
+		if st == nil {
 			st = stack.New(5)
 		}
 		rec.AddAttrs(Attr{Key: stack.StackKey, Value: AnyValue(st)})

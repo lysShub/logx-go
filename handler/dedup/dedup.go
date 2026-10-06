@@ -142,6 +142,7 @@ func newRecords(p pooler, byteSize int) *records {
 	len := len(b) / int(unsafe.Sizeof(record{}))
 
 	r := &records{
+		p:   p,
 		raw: b,
 		l:   unsafe.Slice(ptr, len),
 	}
@@ -188,7 +189,7 @@ func defalutHash(r slog.Record) uint32 {
 	r.Attrs(func(a slog.Attr) (next bool) {
 		if a.Key == stack.StackKey {
 			v := a.Value.Any()
-			if s, is := v.(stack.Stack); is {
+			if s, is := v.(stack.Stack); is && s != nil {
 				b := unsafe.Slice((*byte)(unsafe.Pointer(s)), unsafe.Sizeof(*s))
 
 				hash = xxh3.HashSeed(b, hash)

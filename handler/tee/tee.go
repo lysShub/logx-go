@@ -2,7 +2,6 @@ package tee
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/lysShub/logx-go/handler"
@@ -51,12 +50,20 @@ func (t *tee) WithGroup(name string) handler.Handler {
 }
 func (t *tee) Slog() slog.Handler { return &handler.WrapHandler{Handler: t} }
 func (t *tee) Sync() error {
-	var errs []error
+	var err error
 	for _, h := range t.hs {
-		if e := h.Sync(); e != nil {
-			errs = append(errs, e)
+		if e := h.Sync(); e != nil && err == nil {
+			err = e
 		}
 	}
-	return errors.Join(errs...)
+	return err
 }
-func (t *tee) Close() error { return nil }
+func (t *tee) Close() error {
+	var err error
+	for _, h := range t.hs {
+		if e := h.Close(); e != nil && err == nil {
+			err = e
+		}
+	}
+	return err
+}

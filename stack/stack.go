@@ -60,3 +60,14 @@ func New(skip ...int) Stack {
 }
 
 const StackKey = "stack"
+
+func Source(skip ...int) Stack {
+	var pcs [32]uintptr
+
+	var n = 2
+	if len(skip) > 0 {
+		n = skip[0]
+	}
+	runtime.Callers(n, pcs[:1])
+	return Stack(&pcs)
+}

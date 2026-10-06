@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +87,21 @@ func Test_No_MemEscape(t *testing.T) {
 	}
 	if allocs > 1 {
 		t.Fatalf("MarshalJSONTo allocated %v allocs/op, want <= 1", allocs)
+	}
+}
+
+func Test_Source(t *testing.T) {
+	s := Source()
+	if s == nil || s[0] == 0 || s[1] != 0 {
+		t.Fatalf("Source: want exactly one non-nil frame, got %v", s)
+	}
+
+	got := marshalJSON(t, s)
+	var str string
+	if err := jsonv2.Unmarshal([]byte(got), &str); err != nil {
+		t.Fatalf("output %s is not a JSON string: %v", got, err)
+	}
+	if !strings.Contains(str, "_test.go:") {
+		t.Fatalf("source %q does not look like file:line", str)
 	}
 }

@@ -54,7 +54,7 @@ func WithReplace(fn func(groups []string, a slog.Attr) slog.Attr) Option {
 	return func(o *handler.Options) { o.ReplaceAttr = fn }
 }
 
-func NewJSON(w writer.Writer, opts ...Option) *json {
+func New(w writer.Writer, opts ...Option) *json {
 	var h = &json{
 		c: &config{},
 		w: w,
@@ -94,7 +94,7 @@ func (h *json) Slog() slog.Handler { return &handler.WrapHandler{Handler: h} }
 func (h *json) Enabled(ctx context.Context, l slog.Level) bool {
 	return h.c.Level.Level() <= l && l < h.c.MaxLevel.Level()
 }
-func (h *json) WithAttrs(attrs []slog.Attr) handler.Handler {
+func (h *json) WithAttrs(attrs ...slog.Attr) handler.Handler {
 	return &json{
 		c: h.c,
 		w: h.w,

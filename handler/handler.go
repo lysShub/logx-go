@@ -14,7 +14,7 @@ import (
 type Handler interface {
 	Enabled(context.Context, slog.Level) bool
 	Handle(context.Context, slog.Record) error
-	WithAttrs(attrs []slog.Attr) Handler
+	WithAttrs(attrs ...slog.Attr) Handler
 	WithGroup(name string) Handler
 	Slog() slog.Handler
 	writer.Syncer
@@ -98,5 +98,5 @@ func (h *WrapHandler) WithGroup(name string) slog.Handler {
 	return &WrapHandler{h.Handler.WithGroup(name)}
 }
 func (h *WrapHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &WrapHandler{h.Handler.WithAttrs(attrs)}
+	return &WrapHandler{h.Handler.WithAttrs(attrs...)}
 }

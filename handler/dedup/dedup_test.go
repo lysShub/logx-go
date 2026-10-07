@@ -18,7 +18,7 @@ type counter struct {
 
 func (c *counter) Enabled(context.Context, slog.Level) bool  { return true }
 func (c *counter) Handle(context.Context, slog.Record) error { c.n++; return nil }
-func (c *counter) WithAttrs([]slog.Attr) handler.Handler     { return c }
+func (c *counter) WithAttrs(...slog.Attr) handler.Handler    { return c }
 func (c *counter) WithGroup(string) handler.Handler          { return c }
 func (c *counter) Slog() slog.Handler                        { return &handler.WrapHandler{Handler: c} }
 func (c *counter) Sync() error                               { return nil }
@@ -97,12 +97,10 @@ func Test_Stack(t *testing.T) {
 	d := dedup.New(c)
 	ctx := context.Background()
 
-	var s1, s2 [32]uintptr
-	s1[0] = 1
-	s2[0] = 2
+	var s1, s2 = []uintptr{1}, []uintptr{2}
 
 	r1 := warn("m")
-	r1.AddAttrs(slog.Any(stack.StackKey, stack.Stack(&s1)))
+	r1.AddAttrs(slog.Any(stack.StackKey, stack.Stack(s1)))
 	if err := d.Handle(ctx, r1); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +112,7 @@ func Test_Stack(t *testing.T) {
 	}
 
 	r2 := warn("m")
-	r2.AddAttrs(slog.Any(stack.StackKey, stack.Stack(&s2)))
+	r2.AddAttrs(slog.Any(stack.StackKey, stack.Stack(s2)))
 	if err := d.Handle(ctx, r2); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +150,7 @@ func Test_Reuse(t *testing.T) {
 			if err := d.Handle(ctx, warn("x")); err != nil {
 				t.Fatal(err)
 			}
-			if err := d.WithAttrs([]slog.Attr{slog.String("k", "v")}).Handle(ctx, warn("x")); err != nil {
+			if err := d.WithAttrs(slog.String("k", "v")).Handle(ctx, warn("x")); err != nil {
 				t.Fatal(err)
 			}
 			if c.n != tt.want {
@@ -165,7 +163,7 @@ func Test_Reuse(t *testing.T) {
 func Test_Derived(t *testing.T) {
 	t.Run("attrs", func(t *testing.T) {
 		c := &counter{}
-		d := dedup.New(c).WithAttrs([]slog.Attr{slog.String("k", "v")})
+		d := dedup.New(c).WithAttrs(slog.String("k", "v"))
 		if err := d.Handle(context.Background(), warn("x")); err != nil {
 			t.Fatal(err)
 		}
@@ -206,7 +204,7 @@ func Test_Slog(t *testing.T) {
 func Test_RefCount(t *testing.T) {
 	c := &counter{}
 	d := dedup.New(c)
-	d2 := d.WithAttrs([]slog.Attr{slog.String("k", "v")})
+	d2 := d.WithAttrs(slog.String("k", "v"))
 	if err := d2.Close(); err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/lysShub/debug-go"
 	"github.com/lysShub/errorx-go"
 	"github.com/lysShub/logx-go/stack"
 )
@@ -22,7 +23,13 @@ type option struct {
 type Option func(*option)
 
 var defaultOption = option{
-	StackLevel: LevelWarn,
+	StackLevel: func() Level {
+		if debug.Debug() {
+			return LevelWarn
+		} else {
+			return LevelError
+		}
+	}(),
 	HandlerErr: func(err error, rec Record) {
 		fmt.Fprintf(os.Stderr, "logx handle falie: %+v\n", err)
 	},

@@ -1,0 +1,63 @@
+name: test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go mod tidy
+      - run: go vet ./...
+      - run: go vet -tags debug ./...
+      - run: go fmt ./...
+      - run: go test ./...
+      - run: go test -tags debug -coverprofile=cover.out ./...
+      - run: git diff --exit-code
+      - name: coverage
+        run: |
+          {
+            echo '## coverage'
+            echo
+            echo '```'
+            go tool cover -func=cover.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - run: go vet -tags debug ./...
+      - run: go test ./...
+      - run: go test -tags debug ./...
+      - run: go test -race ./...
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: "1"
+
+  checks-done:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: test "${{ needs.lint.result }}" = success
+      - run: test "${{ needs.test.result }}" = success

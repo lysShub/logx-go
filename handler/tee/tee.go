@@ -12,7 +12,7 @@ type tee struct {
 } //
 var _ handler.Handler = (*tee)(nil)
 
-func New(hs ...handler.Handler) *tee { return &tee{hs: hs} }
+func Tee(hs ...handler.Handler) *tee { return &tee{hs: hs} }
 
 func (t *tee) Enabled(ctx context.Context, l slog.Level) bool {
 	for _, h := range t.hs {
@@ -34,10 +34,10 @@ func (t *tee) Handle(ctx context.Context, r slog.Record) error {
 	}
 	return err
 }
-func (t *tee) WithAttrs(attrs []slog.Attr) handler.Handler {
+func (t *tee) WithAttrs(attrs ...slog.Attr) handler.Handler {
 	var hs = make([]handler.Handler, len(t.hs))
 	for i, h := range t.hs {
-		hs[i] = h.WithAttrs(attrs)
+		hs[i] = h.WithAttrs(attrs...)
 	}
 	return &tee{hs: hs}
 }

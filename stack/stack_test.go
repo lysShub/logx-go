@@ -23,7 +23,7 @@ func marshalJSON(t *testing.T, s Stack) string {
 
 func Test_Marshal(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
-		s := Stack(&stack{})
+		s := Stack(nil)
 		if act := marshalJSON(t, s); act != "null" {
 			t.Fatalf("got %s, want null", act)
 		}
@@ -34,9 +34,8 @@ func Test_Marshal(t *testing.T) {
 		if !ok {
 			t.Fatal("runtime.Caller failed")
 		}
-		s := &stack{}
-		s[0] = pc
-		if s[0] == 0 || s[1] != 0 {
+		s := Stack{pc}
+		if len(s) != 1 || s[0] == 0 {
 			t.Fatalf("test setup: want exactly one frame, got %v", s)
 		}
 
@@ -51,7 +50,7 @@ func Test_Marshal(t *testing.T) {
 		s := New()
 
 		var exp []string
-		fs := runtime.CallersFrames(s[:])
+		fs := runtime.CallersFrames(s)
 		for {
 			f, more := fs.Next()
 			exp = append(exp, fmt.Sprintf("%s:%d", f.File, f.Line))
@@ -92,7 +91,7 @@ func Test_No_MemEscape(t *testing.T) {
 
 func Test_Source(t *testing.T) {
 	s := Source()
-	if s == nil || s[0] == 0 || s[1] != 0 {
+	if len(s) != 1 || s[0] == 0 {
 		t.Fatalf("Source: want exactly one non-nil frame, got %v", s)
 	}
 

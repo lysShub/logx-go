@@ -21,7 +21,7 @@ type counter struct {
 
 func (c *counter) Enabled(context.Context, slog.Level) bool      { return true }
 func (c *counter) Handle(_ context.Context, r slog.Record) error { c.last = r; c.n++; return c.err }
-func (c *counter) WithAttrs([]slog.Attr) handler.Handler         { return c }
+func (c *counter) WithAttrs(...slog.Attr) handler.Handler        { return c }
 func (c *counter) WithGroup(string) handler.Handler              { return c }
 func (c *counter) Slog() slog.Handler                            { return &handler.WrapHandler{Handler: c} }
 func (c *counter) Sync() error                                   { c.synced = true; return nil }

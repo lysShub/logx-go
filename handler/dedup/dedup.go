@@ -98,11 +98,11 @@ func (d *dedup) Handle(ctx context.Context, rec slog.Record) error {
 	return d.Handler.Handle(ctx, rec)
 }
 
-func (d *dedup) WithAttrs(attrs []slog.Attr) handler.Handler {
+func (d *dedup) WithAttrs(attrs ...slog.Attr) handler.Handler {
 	if len(attrs) == 0 {
 		return d
 	}
-	return d.derive(d.Handler.WithAttrs(attrs))
+	return d.derive(d.Handler.WithAttrs(attrs...))
 }
 
 func (d *dedup) WithGroup(name string) handler.Handler {

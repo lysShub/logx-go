@@ -17,7 +17,7 @@ func Test_Discard(t *testing.T) {
 	if err := d.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "m", 0)); err != nil {
 		t.Fatal(err)
 	}
-	if d.WithAttrs([]slog.Attr{slog.String("k", "v")}) == nil {
+	if d.WithAttrs(slog.String("k", "v")) == nil {
 		t.Fatal("WithAttrs returned nil")
 	}
 	if d.WithGroup("g") == nil {

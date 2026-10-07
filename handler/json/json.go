@@ -94,7 +94,7 @@ func (h *json) Slog() slog.Handler { return &handler.WrapHandler{Handler: h} }
 func (h *json) Enabled(ctx context.Context, l slog.Level) bool {
 	return h.c.Level.Level() <= l && l < h.c.MaxLevel.Level()
 }
-func (h *json) WithAttrs(attrs []slog.Attr) handler.Handler {
+func (h *json) WithAttrs(attrs ...slog.Attr) handler.Handler {
 	return &json{
 		c: h.c,
 		w: h.w,

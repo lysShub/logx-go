@@ -8,6 +8,7 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/lysShub/errorx-go"
 	"github.com/lysShub/logx-go/handler"
 	"github.com/lysShub/logx-go/stack"
 )
@@ -18,6 +19,10 @@ func Info(msg string, attrs ...Attr)             { defaultLogger.Load().Info(msg
 func Warn(err error, attrs ...Attr)              { defaultLogger.Load().Warn(err, attrs...) }
 func Error(err error, attrs ...Attr)             { defaultLogger.Load().Error(err, attrs...) }
 func Fatal(err error, attrs ...Attr)             { defaultLogger.Load().Fatal(err, attrs...) }
+
+func WarnMsg(msg string, attrs ...Attr)  { defaultLogger.Load().Warn(errorx.StringErr(msg), attrs...) }
+func ErrorMsg(msg string, attrs ...Attr) { defaultLogger.Load().Error(errorx.StringErr(msg), attrs...) }
+func FatalMsg(msg string, attrs ...Attr) { defaultLogger.Load().Fatal(errorx.StringErr(msg), attrs...) }
 
 type Logger struct {
 	h handler.Handler
@@ -49,7 +54,7 @@ func (l *Logger) WithGroup(name string) *Logger {
 	return &Logger{h: l.h.WithGroup(name), o: l.o}
 }
 func (l *Logger) WithAttrs(attrs ...Attr) *Logger {
-	return &Logger{h: l.h.WithAttrs(attrs), o: l.o}
+	return &Logger{h: l.h.WithAttrs(attrs...), o: l.o}
 }
 
 func (l *Logger) Log(level Level, msg string, attrs ...Attr) {

@@ -19,7 +19,7 @@ type counter struct {
 
 func (c *counter) Enabled(context.Context, slog.Level) bool  { return !c.off }
 func (c *counter) Handle(context.Context, slog.Record) error { c.n++; return nil }
-func (c *counter) WithAttrs([]slog.Attr) handler.Handler     { return c }
+func (c *counter) WithAttrs(...slog.Attr) handler.Handler    { return c }
 func (c *counter) WithGroup(string) handler.Handler          { return c }
 func (c *counter) Slog() slog.Handler                        { return &handler.WrapHandler{Handler: c} }
 func (c *counter) Sync() error                               { c.synced = true; return nil }

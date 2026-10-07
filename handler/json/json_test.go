@@ -202,7 +202,7 @@ func Test_Replace(t *testing.T) {
 func Test_Attrs(t *testing.T) {
 	t.Run("with_attrs", func(t *testing.T) {
 		m := &mockWriter{}
-		h := json.NewJSON(m).WithAttrs([]slog.Attr{slog.String("a", "b")})
+		h := json.NewJSON(m).WithAttrs(slog.String("a", "b"))
 		if err := h.Handle(context.Background(), rec(slog.LevelInfo)); err != nil {
 			t.Fatal(err)
 		}

@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"io"
 	"slices"
 	"sync"
 	"time"
@@ -11,7 +12,8 @@ import (
 type cache struct {
 	bytesLimit  int
 	periodLimit time.Duration
-	w           Writer
+	w           io.Writer
+	syncer      Syncer
 
 	m     sync.Mutex
 	bytes int
@@ -29,12 +31,15 @@ func WithPeriodLimit(dur time.Duration) func(*cache) {
 	return func(b *cache) { b.periodLimit = dur }
 }
 
-func Cache(w Writer, opts ...func(*cache)) Writer {
+func Cache(w io.Writer, opts ...func(*cache)) Writer {
 	var b = &cache{
 		bytesLimit:  1024 * 1024,
 		periodLimit: time.Minute * 5,
 		w:           w,
 		ch:          make(chan struct{}),
+	}
+	if s, ok := w.(Syncer); ok {
+		b.syncer = s
 	}
 	for _, e := range opts {
 		e(b)
@@ -62,8 +67,8 @@ func (b *cache) close(cause error) error {
 		}
 		b.m.Unlock()
 
-		if b.w != nil {
-			errs = append(errs, b.w.Close())
+		if c, ok := b.w.(io.Closer); ok {
+			errs = append(errs, c.Close())
 		}
 		return errs
 	})
@@ -138,5 +143,10 @@ func (b *cache) flush() error {
 		}
 		Pooler.Put(e)
 	}
-	return b.w.Sync()
+
+	if b.syncer != nil {
+		return b.syncer.Sync()
+	} else {
+		return nil
+	}
 }

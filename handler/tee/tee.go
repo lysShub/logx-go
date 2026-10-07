@@ -34,10 +34,10 @@ func (t *tee) Handle(ctx context.Context, r slog.Record) error {
 	}
 	return err
 }
-func (t *tee) WithAttrs(attrs []slog.Attr) handler.Handler {
+func (t *tee) WithAttrs(attrs ...slog.Attr) handler.Handler {
 	var hs = make([]handler.Handler, len(t.hs))
 	for i, h := range t.hs {
-		hs[i] = h.WithAttrs(attrs)
+		hs[i] = h.WithAttrs(attrs...)
 	}
 	return &tee{hs: hs}
 }

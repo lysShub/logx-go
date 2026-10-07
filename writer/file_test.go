@@ -6,6 +6,43 @@ import (
 	"testing"
 )
 
+func Test_std(t *testing.T) {
+	t.Run("close is isolated", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "std")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+
+		w := std{f}
+		if _, err := w.Write([]byte("x")); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Sync(); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		// std.Close must be a no-op; the underlying file stays writable.
+		if _, err := f.Write([]byte("y")); err != nil {
+			t.Fatalf("underlying file was closed: %v", err)
+		}
+	})
+
+	t.Run("std streams", func(t *testing.T) {
+		for _, w := range []Writer{Stdout(), Stderr()} {
+			if err := w.Sync(); err != nil {
+				t.Fatalf("Sync: %v", err)
+			}
+			if err := w.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+		}
+	})
+}
+
 func Test_file(t *testing.T) {
 
 	t.Run("path exist", func(t *testing.T) {

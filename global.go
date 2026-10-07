@@ -2,15 +2,15 @@ package logx
 
 import (
 	"log/slog"
-	"os"
 	"sync/atomic"
 
 	"github.com/lysShub/logx-go/handler/json"
 	"github.com/lysShub/logx-go/stack"
+	"github.com/lysShub/logx-go/writer"
 )
 
 var (
-	_             = SetDefault(New(json.NewJSON(os.Stdout)))
+	_             = SetDefault(New(json.NewJSON(writer.Stdout())))
 	defaultLogger atomic.Pointer[Logger]
 )
 

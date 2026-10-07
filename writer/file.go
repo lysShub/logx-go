@@ -7,12 +7,20 @@ import (
 	"unsafe"
 )
 
-type file struct {
-	*os.File
-} //
+type std struct{ *os.File } //
+var _ Writer = std{}
+
+func Stderr() Writer { return std{os.Stderr} }
+func Stdout() Writer { return std{os.Stdout} }
+
+func (std) Close() error { return nil }
+func (s std) Sync() error {
+	s.File.Sync()
+	return nil
+}
+
+type file struct{ *os.File } //
 var _ Writer = (*file)(nil)
-var Stderr Writer = MustFile(os.Stderr)
-var Stdout Writer = MustFile(os.Stdout)
 
 func File[T *os.File | string](f T) (w Writer, err error) {
 	fh, err := openFile(f, os.O_CREATE|os.O_WRONLY|os.O_APPEND)

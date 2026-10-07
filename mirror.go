@@ -3,6 +3,8 @@ package logx
 import (
 	"log/slog"
 	"time"
+
+	"github.com/lysShub/logx-go/stack"
 )
 
 type (
@@ -45,6 +47,7 @@ const (
 	MessageKey = slog.MessageKey
 	SourceKey  = slog.SourceKey
 	ErrorKey   = "err"
+	StackKey   = stack.StackKey
 )
 
 func NewRecord(t time.Time, level Level, msg string, pc uintptr) Record {
@@ -73,5 +76,4 @@ func Int64(key string, value int64) Attr        { return slog.Int64(key, value) 
 func String(key, value string) Attr             { return slog.String(key, value) }
 func Time(key string, v time.Time) Attr         { return slog.Time(key, v) }
 func Uint64(key string, value uint64) Attr      { return slog.Uint64(key, value) }
-func Msg(msg string) Attr                       { return slog.String(MessageKey, msg) }
-func Err(err error) Attr                        { return slog.String(ErrorKey, err.Error()) }
+func Err(err error) Attr                        { return slog.Any(ErrorKey, err) }

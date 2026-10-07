@@ -41,7 +41,7 @@ func (c *counter) stack() stack.Stack {
 func Test_Stack(t *testing.T) {
 	t.Run("warn", func(t *testing.T) {
 		c := &counter{}
-		logx.New(c, logx.WithStackLevel(logx.LevelWarn)).Warn(errors.New("boom"))
+		logx.New(c, logx.WithStackLevel(logx.LevelWarn)).Warn("boom", logx.Err(errors.New("boom")))
 		if c.stack() == nil {
 			t.Fatal("warn should attach a stack when StackLevel <= warn, got nil")
 		}
@@ -49,7 +49,7 @@ func Test_Stack(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		c := &counter{}
-		logx.New(c).Error(errors.New("boom"))
+		logx.New(c).Error("boom", logx.Err(errors.New("boom")))
 		if c.stack() == nil {
 			t.Fatal("error should attach a captured stack, got nil")
 		}
@@ -83,45 +83,26 @@ func Test_Message(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		c := &counter{}
-		logx.New(c).Error(errors.New("kaboom"))
+		logx.New(c).Error("kaboom")
 		if c.last.Message != "kaboom" {
 			t.Fatalf("message got %q, want %q", c.last.Message, "kaboom")
 		}
 	})
-
-	t.Run("msg_override", func(t *testing.T) {
-		c := &counter{}
-		logx.New(c).Error(errors.New("kaboom"), logx.Msg("custom"))
-		if c.last.Message != "custom" {
-			t.Fatalf("message got %q, want %q", c.last.Message, "custom")
-		}
-
-		var errVal string
-		hasMsg := false
-		c.last.Attrs(func(a slog.Attr) bool {
-			switch a.Key {
-			case logx.ErrorKey:
-				errVal = a.Value.String()
-			case logx.MessageKey:
-				hasMsg = true
-			}
-			return true
-		})
-		if errVal != "kaboom" {
-			t.Fatalf("err attr got %q, want %q", errVal, "kaboom")
-		}
-		if hasMsg {
-			t.Fatal("msg attr should have been consumed by Msg override")
-		}
-	})
 }
 
-func Test_AttrsRestored(t *testing.T) {
-	attrs := []logx.Attr{logx.Msg("custom")}
-	logx.New(&counter{}).Warn(errors.New("boom"), attrs...)
+func Test_ErrAttr(t *testing.T) {
+	c := &counter{}
+	logx.New(c).Error("boom", logx.Err(errors.New("kaboom")))
 
-	if attrs[0].Key != logx.MessageKey || attrs[0].Value.String() != "custom" {
-		t.Fatalf("caller attrs mutated: %+v", attrs[0])
+	var got error
+	c.last.Attrs(func(a slog.Attr) bool {
+		if a.Key == logx.ErrorKey {
+			got, _ = a.Value.Any().(error)
+		}
+		return true
+	})
+	if got == nil || got.Error() != "kaboom" {
+		t.Fatalf("err attr got %v, want kaboom", got)
 	}
 }
 
@@ -168,7 +149,7 @@ func Test_DefaultLogger(t *testing.T) {
 	old := logx.SetDefault(logx.New(c))
 	defer logx.SetDefault(old)
 
-	logx.Warn(errors.New("boom"))
+	logx.Warn("boom")
 	if c.n != 1 {
 		t.Fatalf("default logger handled %d times, want 1", c.n)
 	}

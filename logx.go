@@ -4,25 +4,19 @@ package logx
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"syscall"
 
-	"github.com/lysShub/errorx-go"
 	"github.com/lysShub/logx-go/handler"
 	"github.com/lysShub/logx-go/stack"
 )
 
-func Log(level Level, msg string, attrs ...Attr) { defaultLogger.Load().log(level, msg, nil, attrs...) }
+func Log(level Level, msg string, attrs ...Attr) { defaultLogger.Load().log(level, msg, attrs...) }
 func Debug(msg string, attrs ...Attr)            { defaultLogger.Load().Debug(msg, attrs...) }
 func Info(msg string, attrs ...Attr)             { defaultLogger.Load().Info(msg, attrs...) }
-func Warn(err error, attrs ...Attr)              { defaultLogger.Load().Warn(err, attrs...) }
-func Error(err error, attrs ...Attr)             { defaultLogger.Load().Error(err, attrs...) }
-func Fatal(err error, attrs ...Attr)             { defaultLogger.Load().Fatal(err, attrs...) }
-
-func WarnMsg(msg string, attrs ...Attr)  { defaultLogger.Load().Warn(errorx.StringErr(msg), attrs...) }
-func ErrorMsg(msg string, attrs ...Attr) { defaultLogger.Load().Error(errorx.StringErr(msg), attrs...) }
-func FatalMsg(msg string, attrs ...Attr) { defaultLogger.Load().Fatal(errorx.StringErr(msg), attrs...) }
+func Warn(msg string, attrs ...Attr)             { defaultLogger.Load().Warn(msg, attrs...) }
+func Error(msg string, attrs ...Attr)            { defaultLogger.Load().Error(msg, attrs...) }
+func Fatal(msg string, attrs ...Attr)            { defaultLogger.Load().Fatal(msg, attrs...) }
 
 type Logger struct {
 	h handler.Handler
@@ -58,70 +52,40 @@ func (l *Logger) WithAttrs(attrs ...Attr) *Logger {
 }
 
 func (l *Logger) Log(level Level, msg string, attrs ...Attr) {
-	l.logmsg(level, msg, attrs...)
+	l.log(level, msg, attrs...)
 }
 func (l *Logger) Debug(msg string, attrs ...Attr) {
-	l.logmsg(LevelDebug, msg, attrs...)
+	l.log(LevelDebug, msg, attrs...)
 }
 func (l *Logger) Info(msg string, attrs ...Attr) {
-	l.logmsg(LevelInfo, msg, attrs...)
+	l.log(LevelInfo, msg, attrs...)
 }
-func (l *Logger) Warn(err error, attrs ...Attr) {
-	l.logerr(LevelWarn, err, attrs...)
+func (l *Logger) Warn(msg string, attrs ...Attr) {
+	l.log(LevelWarn, msg, attrs...)
 }
-func (l *Logger) Error(err error, attrs ...Attr) {
-	l.logerr(LevelError, err, attrs...)
+func (l *Logger) Error(msg string, attrs ...Attr) {
+	l.log(LevelError, msg, attrs...)
 }
-func (l *Logger) Fatal(err error, attrs ...Attr) {
-	l.logerr(LevelFatal, err, attrs...)
+func (l *Logger) Fatal(msg string, attrs ...Attr) {
+	l.log(LevelFatal, msg, attrs...)
 }
 
-func (l *Logger) logmsg(level Level, msg string, attrs ...Attr) {
+func (l *Logger) log(level Level, msg string, attrs ...Attr) {
 	if !l.h.Enabled(context.Background(), level) {
 		return
 	}
-	l.log(level, msg, nil, attrs...)
-}
-
-func (l *Logger) logerr(level Level, err error, attrs ...Attr) {
-	if !l.h.Enabled(context.Background(), level) {
-		return
-	}
-	msg := err.Error()
-
-	var (
-		bak  Attr
-		baki int = -1
-	)
-	for i, attr := range attrs {
-		if attr.Key == MessageKey && attr.Value.Kind() == KindString {
-			attrs[i] = slog.String(ErrorKey, msg)
-			msg = attr.Value.String()
-
-			baki, bak = i, attr
-			break
-		}
-	}
-
-	var st stack.Stack
-	if level >= l.o.StackLevel {
-		// 错误现场 替代 日志现场, 通常是相近的
-		st = l.o.ErrStack(err)
-	}
-	l.log(level, msg, st, attrs...)
-
-	if baki >= 0 {
-		attrs[baki] = bak
-	}
-}
-
-func (l *Logger) log(level Level, msg string, st stack.Stack, attrs ...Attr) {
 	rec := NewRecord(l.o.Now(), level, msg, 0)
 	rec.AddAttrs(attrs...)
 
 	if level >= l.o.StackLevel {
+		var st stack.Stack
+		if len(attrs) > 0 && attrs[0].Key == ErrorKey && attrs[0].Value.Kind() == KindAny {
+			if e, ok := attrs[0].Value.Any().(error); ok {
+				st = l.o.ErrStack(e)
+			}
+		}
 		if st == nil {
-			st = stack.New(5)
+			st = stack.New(4)
 		}
 		rec.AddAttrs(Attr{Key: stack.StackKey, Value: AnyValue(st)})
 	}

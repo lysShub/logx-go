@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	_             = SetDefault(New(json.NewJSON(writer.Stdout())))
+	_             = SetDefault(New(json.New(writer.Stdout())))
 	defaultLogger atomic.Pointer[Logger]
 )
 

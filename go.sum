@@ -1,13 +1,9 @@
 github.com/klauspost/cpuid/v2 v2.2.10 h1:tBs3QSyvjDyFTq3uoc/9xFpCuOsJQFNPiAhYdw2skhE=
 github.com/klauspost/cpuid/v2 v2.2.10/go.mod h1:hqwkgyIinND0mEev00jJYCxPNVRVXFQeu1XKlok6oO0=
-github.com/lysShub/bytespool-go v1.1.0 h1:aGMlKLGCEq0vWVg4FQNDnbJUo7ScYxxeUvXrViVxDAY=
-github.com/lysShub/bytespool-go v1.1.0/go.mod h1:6/EjYySlMi1pL5AYOfSwP8FVXXaP97pBg16llEMCf/A=
-github.com/lysShub/bytespool-go v1.2.0 h1:8UZY6O7V2lD91yCcK8XY7ZzBW+C4ihGhy02UjIdqo/w=
-github.com/lysShub/bytespool-go v1.2.0/go.mod h1:YKl/39U1oxf4OCMbSAm/RBwegQlTN+sUkd5Z335DzBg=
+github.com/lysShub/bytespool-go v0.1.0 h1:kPyzLrS9dxnOJd5Rw50qxBfZAHHc1X81kFD279zNfNc=
+github.com/lysShub/bytespool-go v0.1.0/go.mod h1:jlNRDj5f3He5ARM+LdzTnG9dDcSnxW0vHxZOLIyRM9k=
 github.com/lysShub/debug-go v0.1.1 h1:00m42SnPAlFe9qoyauS005PS0k10JD+Gie/tx54OFN8=
 github.com/lysShub/debug-go v0.1.1/go.mod h1:CNRRJzpWlIqImdsnJf0l/MSqpSllYxeJQ1zVo7sUr7g=
-github.com/lysShub/debug-go v1.1.0 h1:U8UovRQifdqoFJp27C2usTAVcvrAtyd/iLGwD4cueiY=
-github.com/lysShub/debug-go v1.1.0/go.mod h1:CNRRJzpWlIqImdsnJf0l/MSqpSllYxeJQ1zVo7sUr7g=
 github.com/lysShub/errorx-go v0.1.2 h1:Veiu66dxVtG5EUWLYDP+w6GCfK4wV2yD/X53NnJNC3A=
 github.com/lysShub/errorx-go v0.1.2/go.mod h1:16nS7GuYm7L3GdYRRSIkUdqAJt7M/nK3g7AXv02+5Pg=
 github.com/zeebo/assert v1.3.0 h1:g7C04CbJuIDKNPFHmsk4hwZDO5O+kntRxzaUoNXj+IQ=

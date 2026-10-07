@@ -12,7 +12,7 @@ type tee struct {
 } //
 var _ handler.Handler = (*tee)(nil)
 
-func New(hs ...handler.Handler) *tee { return &tee{hs: hs} }
+func Tee(hs ...handler.Handler) *tee { return &tee{hs: hs} }
 
 func (t *tee) Enabled(ctx context.Context, l slog.Level) bool {
 	for _, h := range t.hs {

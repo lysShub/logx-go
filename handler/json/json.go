@@ -54,7 +54,7 @@ func WithReplace(fn func(groups []string, a slog.Attr) slog.Attr) Option {
 	return func(o *handler.Options) { o.ReplaceAttr = fn }
 }
 
-func NewJSON(w writer.Writer, opts ...Option) *json {
+func New(w writer.Writer, opts ...Option) *json {
 	var h = &json{
 		c: &config{},
 		w: w,

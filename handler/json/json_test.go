@@ -47,7 +47,7 @@ func Test_SyncLevel(t *testing.T) {
 
 	t.Run("default is error", func(t *testing.T) {
 		m := &mockWriter{}
-		h := json.NewJSON(m) // default SyncLevel = slog.LevelError
+		h := json.New(m) // default SyncLevel = slog.LevelError
 
 		if err := h.Handle(context.Background(), rec(slog.LevelError)); err != nil {
 			t.Fatal(err)
@@ -66,7 +66,7 @@ func Test_SyncLevel(t *testing.T) {
 
 	t.Run("custom level", func(t *testing.T) {
 		m := &mockWriter{}
-		h := json.NewJSON(m, json.WithSyncLevel(slog.LevelWarn))
+		h := json.New(m, json.WithSyncLevel(slog.LevelWarn))
 
 		if err := h.Handle(context.Background(), rec(slog.LevelInfo)); err != nil {
 			t.Fatal(err)
@@ -99,7 +99,7 @@ func Test_TimeValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mockWriter{}
-			h := json.NewJSON(m, json.WithTimeLocation(time.UTC), json.WithTimeValue(tt.f))
+			h := json.New(m, json.WithTimeLocation(time.UTC), json.WithTimeValue(tt.f))
 			if err := h.Handle(context.Background(), slog.NewRecord(tm, slog.LevelInfo, "msg", 0)); err != nil {
 				t.Fatal(err)
 			}
@@ -129,7 +129,7 @@ func Test_LevelValue(t *testing.T) {
 		}
 		for _, tt := range tests {
 			m := &mockWriter{}
-			h := json.NewJSON(m)
+			h := json.New(m)
 			if err := h.Handle(context.Background(), rec(tt.level)); err != nil {
 				t.Fatal(err)
 			}
@@ -146,7 +146,7 @@ func Test_LevelValue(t *testing.T) {
 
 	t.Run("custom", func(t *testing.T) {
 		m := &mockWriter{}
-		h := json.NewJSON(m, json.WithLevelValue(func(l slog.Level) slog.Value {
+		h := json.New(m, json.WithLevelValue(func(l slog.Level) slog.Value {
 			return slog.Int64Value(int64(l))
 		}))
 		if err := h.Handle(context.Background(), rec(slog.LevelWarn)); err != nil {
@@ -165,7 +165,7 @@ func Test_LevelValue(t *testing.T) {
 
 func Test_Enabled(t *testing.T) {
 	m := &mockWriter{}
-	h := json.NewJSON(m, json.WithLeveler(slog.LevelWarn))
+	h := json.New(m, json.WithLeveler(slog.LevelWarn))
 
 	for level, want := range map[slog.Level]bool{
 		slog.LevelInfo:  false,
@@ -180,7 +180,7 @@ func Test_Enabled(t *testing.T) {
 
 func Test_Replace(t *testing.T) {
 	m := &mockWriter{}
-	h := json.NewJSON(m, json.WithReplace(func(groups []string, a slog.Attr) slog.Attr {
+	h := json.New(m, json.WithReplace(func(groups []string, a slog.Attr) slog.Attr {
 		if a.Key == slog.MessageKey {
 			a.Value = slog.StringValue("replaced")
 		}
@@ -202,7 +202,7 @@ func Test_Replace(t *testing.T) {
 func Test_Attrs(t *testing.T) {
 	t.Run("with_attrs", func(t *testing.T) {
 		m := &mockWriter{}
-		h := json.NewJSON(m).WithAttrs(slog.String("a", "b"))
+		h := json.New(m).WithAttrs(slog.String("a", "b"))
 		if err := h.Handle(context.Background(), rec(slog.LevelInfo)); err != nil {
 			t.Fatal(err)
 		}
@@ -218,7 +218,7 @@ func Test_Attrs(t *testing.T) {
 
 	t.Run("with_group", func(t *testing.T) {
 		m := &mockWriter{}
-		h := json.NewJSON(m).WithGroup("g")
+		h := json.New(m).WithGroup("g")
 		r := rec(slog.LevelInfo)
 		r.AddAttrs(slog.String("a", "b"))
 		if err := h.Handle(context.Background(), r); err != nil {
